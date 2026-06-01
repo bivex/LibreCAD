@@ -117,3 +117,4 @@ core.*
 *.egg-info
 libraries/lciconengine/moc_predefs.h
 /tests/__pycache__
+uv.lock
