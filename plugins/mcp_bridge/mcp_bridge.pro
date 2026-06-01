@@ -43,4 +43,8 @@ SOURCES += mcp_bridge.cpp \
            librecad_adapter.cpp \
            command_processor.cpp
 
-DESTDIR = ../../generated/plugins
+macx {
+    DESTDIR = ../../LibreCAD.app/Contents/Resources/plugins
+} else {
+    DESTDIR = ../../generated/plugins
+}

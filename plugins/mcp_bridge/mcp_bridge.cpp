@@ -2,6 +2,7 @@
 #include <QJsonDocument>
 #include <QTcpSocket>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
 #include <QMessageBox>
@@ -28,7 +29,7 @@ QString MCP_Bridge::name() const {
 PluginCapabilities MCP_Bridge::getCapabilities() const {
     LOG_STEP("getCapabilities() START.");
     PluginCapabilities caps;
-    caps.menuEntryPoints << PluginMenuLocation("plugins_menu", "Start MCP Bridge");
+    caps.menuEntryPoints << PluginMenuLocation("plugins_menu", "Start MCP Bridge", "");
     caps.paintEventPriorities.clear();
     LOG_STEP("getCapabilities() END.");
     return caps;
@@ -40,24 +41,41 @@ void MCP_Bridge::execComm(Document_Interface* doc, QWidget* parent, QString cmd)
         LOG_STEP("Error: doc is NULL.");
         return;
     }
-    
-    MCP_Bridge_Dialog dlg(doc, parent);
-    dlg.exec();
+
+    if (m_dialog) {
+        m_dialog->show();
+        m_dialog->raise();
+        m_dialog->activateWindow();
+        return;
+    }
+
+    m_dialog = new MCP_Bridge_Dialog(doc, parent);
+    m_dialog->setAttribute(Qt::WA_DeleteOnClose);
+    connect(m_dialog, &QObject::destroyed, this, [this]() { m_dialog = nullptr; });
+    m_dialog->show();
 }
 
 // --- DIALOG ---
 
 MCP_Bridge_Dialog::MCP_Bridge_Dialog(Document_Interface* doc, QWidget* parent)
     : QDialog(parent), m_doc(doc), m_server(nullptr) {
-    
+
     setWindowTitle("MCP Bridge");
     setMinimumWidth(300);
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->addWidget(new QLabel("MCP Bridge Active\nPort: 12346"));
-    
-    QPushButton* closeBtn = new QPushButton("Stop", this);
-    connect(closeBtn, &QPushButton::clicked, this, &QDialog::accept);
-    layout->addWidget(closeBtn);
+
+    QHBoxLayout* btnLayout = new QHBoxLayout();
+
+    m_stopBtn = new QPushButton("Stop", this);
+    connect(m_stopBtn, &QPushButton::clicked, this, &QDialog::close);
+    btnLayout->addWidget(m_stopBtn);
+
+    m_hideBtn = new QPushButton("Hide", this);
+    connect(m_hideBtn, &QPushButton::clicked, this, &MCP_Bridge_Dialog::hideAndKeepRunning);
+    btnLayout->addWidget(m_hideBtn);
+
+    layout->addLayout(btnLayout);
 
     m_server = new QTcpServer(this);
     connect(m_server, &QTcpServer::newConnection, this, &MCP_Bridge_Dialog::onNewConnection);
@@ -66,6 +84,10 @@ MCP_Bridge_Dialog::MCP_Bridge_Dialog(Document_Interface* doc, QWidget* parent)
 
 MCP_Bridge_Dialog::~MCP_Bridge_Dialog() {
     if (m_server) m_server->close();
+}
+
+void MCP_Bridge_Dialog::hideAndKeepRunning() {
+    hide();
 }
 
 void MCP_Bridge_Dialog::onNewConnection() {
