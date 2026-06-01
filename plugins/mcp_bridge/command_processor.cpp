@@ -104,6 +104,192 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
             params["size"].toDouble(10.0)
         });
 
+    // ========== New Primitives ==========
+
+    } else if (method == "addPoint") {
+        m_service.drawPoint({
+            {params["x"].toDouble(), params["y"].toDouble()}
+        });
+
+    } else if (method == "addSplinePoints") {
+        QJsonArray pointsArr = params["points"].toArray();
+        QVector<QPointF> points;
+        for (int i = 0; i < pointsArr.size(); ++i) {
+            QJsonObject p = pointsArr[i].toObject();
+            points.append(QPointF(p["x"].toDouble(), p["y"].toDouble()));
+        }
+        m_service.drawSplinePoints({points, params["closed"].toBool(false)});
+
+    } else if (method == "addInsert") {
+        m_service.insertBlock({
+            params["name"].toString(),
+            {params["x"].toDouble(), params["y"].toDouble()},
+            {params["sx"].toDouble(1.0), params["sy"].toDouble(1.0)},
+            params["rotation"].toDouble(0.0)
+        });
+
+    } else if (method == "addBlockFromDisk") {
+        QString result = m_service.addBlockFromDisk(params["path"].toString());
+        if (result.isEmpty()) {
+            response["status"] = "error";
+            response["message"] = "Failed to load block from disk";
+        } else {
+            response["blockName"] = result;
+        }
+
+    // ========== Dimensions ==========
+
+    } else if (method == "addDimLinear") {
+        m_service.addDimension({
+            DimType::Linear,
+            {params["x1"].toDouble(), params["y1"].toDouble()},
+            {params["x2"].toDouble(), params["y2"].toDouble()},
+            {0.0, params["dimLineOffset"].toDouble(10.0)},
+            params["angle"].toDouble(0.0),
+            params["text"].toString(""),
+            2.5
+        });
+
+    } else if (method == "addDimAligned") {
+        m_service.addDimension({
+            DimType::Aligned,
+            {params["x1"].toDouble(), params["y1"].toDouble()},
+            {params["x2"].toDouble(), params["y2"].toDouble()},
+            {0.0, params["dimLineOffset"].toDouble(10.0)},
+            0.0,
+            params["text"].toString(""),
+            2.5
+        });
+
+    } else if (method == "addDimRadial") {
+        m_service.addDimension({
+            DimType::Radial,
+            {params["cx"].toDouble(), params["cy"].toDouble()},
+            {params["ex"].toDouble(), params["ey"].toDouble()},
+            {},
+            0.0,
+            params["text"].toString(""),
+            2.5
+        });
+
+    } else if (method == "addDimDiametric") {
+        m_service.addDimension({
+            DimType::Diametric,
+            {params["cx"].toDouble(), params["cy"].toDouble()},
+            {params["ex"].toDouble(), params["ey"].toDouble()},
+            {},
+            0.0,
+            params["text"].toString(""),
+            2.5
+        });
+
+    } else if (method == "addDimAngular") {
+        m_service.addDimension({
+            DimType::Angular,
+            {params["x1"].toDouble(), params["y1"].toDouble()},
+            {params["x2"].toDouble(), params["y2"].toDouble()},
+            {params["vx"].toDouble(), params["vy"].toDouble()},
+            0.0,
+            params["text"].toString(""),
+            2.5
+        });
+
+    } else if (method == "addDimLeader") {
+        m_service.addDimension({
+            DimType::Leader,
+            {params["x1"].toDouble(), params["y1"].toDouble()},
+            {params["x2"].toDouble(), params["y2"].toDouble()},
+            {},
+            0.0,
+            params["text"].toString(""),
+            2.5
+        });
+
+    // ========== Entity Queries ==========
+
+    } else if (method == "getAllEntities") {
+        response["entities"] = m_service.getAllEntityData();
+
+    } else if (method == "getEntityById") {
+        qulonglong eid = QString::number(params["eid"].toDouble()).toULongLong();
+        QJsonObject data = m_service.getEntityDataById(eid);
+        if (data.isEmpty()) {
+            response["status"] = "error";
+            response["message"] = "Entity not found";
+        } else {
+            response["entity"] = data;
+        }
+
+    // ========== Entity Operations ==========
+
+    } else if (method == "removeEntity") {
+        qulonglong eid = QString::number(params["eid"].toDouble()).toULongLong();
+        if (!m_service.removeEntity(eid)) {
+            response["status"] = "error";
+            response["message"] = "Entity not found or cannot be removed";
+        }
+
+    } else if (method == "moveEntity") {
+        qulonglong eid = QString::number(params["eid"].toDouble()).toULongLong();
+        if (!m_service.moveEntity(eid, params["dx"].toDouble(), params["dy"].toDouble())) {
+            response["status"] = "error";
+            response["message"] = "Entity not found";
+        }
+
+    } else if (method == "rotateEntity") {
+        qulonglong eid = QString::number(params["eid"].toDouble()).toULongLong();
+        if (!m_service.rotateEntity(eid, params["cx"].toDouble(), params["cy"].toDouble(), params["angle"].toDouble())) {
+            response["status"] = "error";
+            response["message"] = "Entity not found";
+        }
+
+    } else if (method == "scaleEntity") {
+        qulonglong eid = QString::number(params["eid"].toDouble()).toULongLong();
+        if (!m_service.scaleEntity(eid, params["cx"].toDouble(), params["cy"].toDouble(),
+                                    params["sx"].toDouble(), params["sy"].toDouble())) {
+            response["status"] = "error";
+            response["message"] = "Entity not found";
+        }
+
+    // ========== Layer Properties ==========
+
+    } else if (method == "getLayerProperties") {
+        LayerProperties props = m_service.getLayerProperties(params["layer"].toString());
+        response["color"] = props.color;
+        response["lineWidth"] = props.lineWidth;
+        response["lineType"] = props.lineType;
+
+    } else if (method == "setLayerProperties") {
+        if (!m_service.setLayerProperties(
+                params["layer"].toString(),
+                params["color"].toInt(0),
+                params["lineWidth"].toString("0.00mm"),
+                params["lineType"].toString("SolidLine"))) {
+            response["status"] = "error";
+            response["message"] = "Failed to set layer properties";
+        }
+
+    // ========== Variables ==========
+
+    } else if (method == "getVariable") {
+        QVariant val = m_service.getVariable(params["key"].toString());
+        if (val.isValid()) {
+            if (val.type() == QVariant::Int)
+                response["value"] = val.toInt();
+            else
+                response["value"] = val.toDouble();
+        } else {
+            response["status"] = "error";
+            response["message"] = "Variable not found";
+        }
+
+    } else if (method == "setVariable") {
+        int code = params["code"].toInt(70);
+        if (!m_service.setVariable(params["key"].toString(), params["value"].toVariant(), code)) {
+            response["status"] = "error";
+            response["message"] = "Failed to set variable";
+        }
+
     // ========== Architectural ==========
 
     } else if (method == "addWall") {
@@ -174,7 +360,6 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
         m_service.drawLine({QPointF(x, y), QPointF(x, y + length)});
 
     } else if (method == "lineParallelThroughPoint") {
-        // Reference line: (lx1,ly1)-(lx2,ly2), parallel through (px,py)
         QPointF a(params["lx1"].toDouble(), params["ly1"].toDouble());
         QPointF b(params["lx2"].toDouble(), params["ly2"].toDouble());
         QPointF p(params["px"].toDouble(), params["py"].toDouble());
@@ -186,7 +371,6 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
         }
 
     } else if (method == "lineParallel") {
-        // Reference line: (lx1,ly1)-(lx2,ly2), offset by distance
         QPointF a(params["lx1"].toDouble(), params["ly1"].toDouble());
         QPointF b(params["lx2"].toDouble(), params["ly2"].toDouble());
         double d = params["distance"].toDouble();
@@ -196,7 +380,6 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
                             QPointF(b.x()+offset.x(), b.y()+offset.y())});
 
     } else if (method == "lineBisector") {
-        // Bisector of angle at vertex (vx,vy) between rays to (ax,ay) and (bx,by)
         QPointF v(params["vx"].toDouble(), params["vy"].toDouble());
         QPointF a(params["ax"].toDouble(), params["ay"].toDouble());
         QPointF b(params["bx"].toDouble(), params["by"].toDouble());
@@ -210,7 +393,6 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
         m_service.drawLine({v, polar(v, bisectAngle, length)});
 
     } else if (method == "lineTangentPC") {
-        // Tangent lines from point (px,py) to circle (cx,cy,r)
         QPointF p(params["px"].toDouble(), params["py"].toDouble());
         QPointF c(params["cx"].toDouble(), params["cy"].toDouble());
         double r = params["r"].toDouble();
@@ -232,7 +414,6 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
         }
 
     } else if (method == "lineTangentCC") {
-        // Common external tangent lines between two circles
         QPointF c1(params["cx1"].toDouble(), params["cy1"].toDouble());
         double r1 = params["r1"].toDouble();
         QPointF c2(params["cx2"].toDouble(), params["cy2"].toDouble());
@@ -244,12 +425,10 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
             double ang = angleDeg(c1, c2);
             double dr = r1 - r2;
             double alpha = std::asin(dr / d) * 180.0 / M_PI;
-            // Tangent line 1: rotated +90 from line of centers
             double a1 = ang + 90 - alpha;
             QPointF s1 = polar(c1, a1 - 90, r1);
             QPointF e1 = polar(c2, a1 - 90, r2);
             m_service.drawLine({s1, e1});
-            // Tangent line 2: rotated -90
             double a2 = ang - 90 + alpha;
             QPointF s2 = polar(c1, a2 + 90, r1);
             QPointF e2 = polar(c2, a2 + 90, r2);
@@ -257,13 +436,11 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
         }
 
     } else if (method == "lineTangentOrthogonal") {
-        // Tangent to circle (cx,cy,r) that is perpendicular to line (lx1,ly1)-(lx2,ly2)
         QPointF c(params["cx"].toDouble(), params["cy"].toDouble());
         double r = params["r"].toDouble();
         QPointF a(params["lx1"].toDouble(), params["ly1"].toDouble());
         QPointF b(params["lx2"].toDouble(), params["ly2"].toDouble());
         double lineAngle = angleDeg(a, b);
-        // Tangent perpendicular to line: tangent point at 90 deg from line direction
         double perpAngle = lineAngle + 90.0;
         QPointF t1 = polar(c, perpAngle, r);
         QPointF t2 = polar(c, perpAngle + 180.0, r);
@@ -275,7 +452,6 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
                             QPointF(t2.x() + n.x()*ext, t2.y() + n.y()*ext)});
 
     } else if (method == "lineOrthogonal") {
-        // Perpendicular line from point (px,py) to line (lx1,ly1)-(lx2,ly2)
         QPointF p(params["px"].toDouble(), params["py"].toDouble());
         QPointF a(params["lx1"].toDouble(), params["ly1"].toDouble());
         QPointF b(params["lx2"].toDouble(), params["ly2"].toDouble());
@@ -285,7 +461,6 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
         response["footY"] = proj.y();
 
     } else if (method == "lineRelativeAngle") {
-        // Line at relative angle from reference line through point
         QPointF a(params["lx1"].toDouble(), params["ly1"].toDouble());
         QPointF b(params["lx2"].toDouble(), params["ly2"].toDouble());
         QPointF p(params["px"].toDouble(), params["py"].toDouble());
@@ -295,7 +470,6 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
         m_service.drawLine({p, polar(p, baseAngle + relAngle, length)});
 
     } else if (method == "lineSnake") {
-        // Connected line segments through a list of points
         QJsonArray pts = params["points"].toArray();
         QVector<QPointF> points;
         for (int i = 0; i < pts.size(); ++i) {
@@ -306,7 +480,6 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
             m_service.drawLine({points[i], points[i+1]});
 
     } else if (method == "lineSnakeX") {
-        // Horizontal snake: alternating horizontal segments at y positions
         double x = params["x"].toDouble();
         double y = params["y"].toDouble();
         double width = params["width"].toDouble(10.0);
@@ -322,7 +495,6 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
         }
 
     } else if (method == "lineSnakeY") {
-        // Vertical snake: alternating vertical segments at x positions
         double x = params["x"].toDouble();
         double y = params["y"].toDouble();
         double height = params["height"].toDouble(10.0);
@@ -338,7 +510,6 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
         }
 
     } else if (method == "lineAngleFromLine") {
-        // Line at a given angle from an existing line, starting at a point on the line
         QPointF a(params["lx1"].toDouble(), params["ly1"].toDouble());
         QPointF b(params["lx2"].toDouble(), params["ly2"].toDouble());
         double offsetRatio = params["t"].toDouble(0.5);
@@ -349,7 +520,6 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
         m_service.drawLine({start, polar(start, baseAngle + angOffset, length)});
 
     } else if (method == "lineOrthogonalFromLine") {
-        // Perpendicular from a point on a line
         QPointF a(params["lx1"].toDouble(), params["ly1"].toDouble());
         QPointF b(params["lx2"].toDouble(), params["ly2"].toDouble());
         double offsetRatio = params["t"].toDouble(0.5);
@@ -359,8 +529,6 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
         m_service.drawLine({start, polar(start, lineAngle + 90.0, length)});
 
     } else if (method == "lineFromPointToLine") {
-        // Shortest line from point to line (perpendicular drop)
-        // Same as lineOrthogonal
         QPointF p(params["px"].toDouble(), params["py"].toDouble());
         QPointF a(params["lx1"].toDouble(), params["ly1"].toDouble());
         QPointF b(params["lx2"].toDouble(), params["ly2"].toDouble());
@@ -372,7 +540,6 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
     // ========== Construction: Slice/Divide ==========
 
     } else if (method == "sliceDivideLine") {
-        // Divide line into N equal segments, mark division points with small marks
         QPointF a(params["x1"].toDouble(), params["y1"].toDouble());
         QPointF b(params["x2"].toDouble(), params["y2"].toDouble());
         int n = params["segments"].toInt(2);
@@ -390,7 +557,6 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
         response["points"] = divisionPts;
 
     } else if (method == "sliceDivideCircle") {
-        // Divide circle into N equal arcs, mark division points
         QPointF c(params["cx"].toDouble(), params["cy"].toDouble());
         double r = params["r"].toDouble();
         int n = params["segments"].toInt(4);
@@ -409,14 +575,12 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
     // ========== Construction: Center Marks ==========
 
     } else if (method == "centerMark") {
-        // Draw a cross at center of a circle/arc
         QPointF c(params["cx"].toDouble(), params["cy"].toDouble());
         double size = params["size"].toDouble(1.0);
         m_service.drawLine({QPointF(c.x() - size, c.y()), QPointF(c.x() + size, c.y())});
         m_service.drawLine({QPointF(c.x(), c.y() - size), QPointF(c.x(), c.y() + size)});
 
     } else if (method == "centerline") {
-        // Draw centerline cross through circle center (extends beyond circle)
         QPointF c(params["cx"].toDouble(), params["cy"].toDouble());
         double r = params["r"].toDouble();
         double ext = params["extension"].toDouble(2.0);

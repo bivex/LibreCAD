@@ -82,6 +82,128 @@ def add_text(text: str, x: float, y: float, size: float = 10.0) -> str:
     return str(query_librecad("addText", {"text": text, "x": x, "y": y, "size": size}))
 
 
+@mcp.tool()
+def add_point(x: float, y: float) -> str:
+    """Draw a point at (x,y)."""
+    return str(query_librecad("addPoint", {"x": x, "y": y}))
+
+
+@mcp.tool()
+def add_spline_points(points: List[Dict[str, float]], closed: bool = False) -> str:
+    """Draw a spline curve through a list of {x,y} interpolation points. Set closed=True to close."""
+    return str(query_librecad("addSplinePoints", {"points": points, "closed": closed}))
+
+
+# --- Block / Insert Tools ---
+
+
+@mcp.tool()
+def add_insert(name: str, x: float, y: float, sx: float = 1.0, sy: float = 1.0, rotation: float = 0.0) -> str:
+    """Insert a block at position (x,y) with scale (sx,sy) and rotation (degrees)."""
+    return str(query_librecad("addInsert", {"name": name, "x": x, "y": y, "sx": sx, "sy": sy, "rotation": rotation}))
+
+
+@mcp.tool()
+def add_block_from_disk(path: str) -> str:
+    """Load a block definition from a DXF file on disk and return its name."""
+    return str(query_librecad("addBlockFromDisk", {"path": path}))
+
+
+# --- Dimension Tools ---
+
+
+@mcp.tool()
+def add_dim_linear(x1: float, y1: float, x2: float, y2: float, dim_line_offset: float = 10.0, angle: float = 0.0, text: str = "") -> str:
+    """Add a linear dimension between two points with optional rotation angle and text override."""
+    return str(query_librecad("addDimLinear", {
+        "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+        "dimLineOffset": dim_line_offset, "angle": angle, "text": text
+    }))
+
+
+@mcp.tool()
+def add_dim_aligned(x1: float, y1: float, x2: float, y2: float, dim_line_offset: float = 10.0, text: str = "") -> str:
+    """Add an aligned dimension between two points (parallel to the measured line)."""
+    return str(query_librecad("addDimAligned", {
+        "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+        "dimLineOffset": dim_line_offset, "text": text
+    }))
+
+
+@mcp.tool()
+def add_dim_radial(cx: float, cy: float, ex: float, ey: float, text: str = "") -> str:
+    """Add a radial dimension from center (cx,cy) to point on circle (ex,ey)."""
+    return str(query_librecad("addDimRadial", {
+        "cx": cx, "cy": cy, "ex": ex, "ey": ey, "text": text
+    }))
+
+
+@mcp.tool()
+def add_dim_diametric(cx: float, cy: float, ex: float, ey: float, text: str = "") -> str:
+    """Add a diametric dimension from center (cx,cy) to point on circle (ex,ey)."""
+    return str(query_librecad("addDimDiametric", {
+        "cx": cx, "cy": cy, "ex": ex, "ey": ey, "text": text
+    }))
+
+
+@mcp.tool()
+def add_dim_angular(x1: float, y1: float, x2: float, y2: float, vx: float, vy: float, text: str = "") -> str:
+    """Add an angular dimension. (x1,y1)-(x2,y2) define two rays from vertex (vx,vy)."""
+    return str(query_librecad("addDimAngular", {
+        "x1": x1, "y1": y1, "x2": x2, "y2": y2, "vx": vx, "vy": vy, "text": text
+    }))
+
+
+@mcp.tool()
+def add_dim_leader(x1: float, y1: float, x2: float, y2: float, text: str = "") -> str:
+    """Add a leader dimension (arrow with optional text) from (x1,y1) to (x2,y2)."""
+    return str(query_librecad("addDimLeader", {
+        "x1": x1, "y1": y1, "x2": x2, "y2": y2, "text": text
+    }))
+
+
+# --- Entity Query Tools ---
+
+
+@mcp.tool()
+def get_all_entities() -> str:
+    """Get a list of all entities in the current drawing with their properties (id, type, layer, coordinates)."""
+    return str(query_librecad("getAllEntities"))
+
+
+@mcp.tool()
+def get_entity_by_id(eid: float) -> str:
+    """Get detailed data for a specific entity by its ID."""
+    return str(query_librecad("getEntityById", {"eid": eid}))
+
+
+# --- Entity Operation Tools ---
+
+
+@mcp.tool()
+def remove_entity(eid: float) -> str:
+    """Remove/delete an entity from the drawing by its ID."""
+    return str(query_librecad("removeEntity", {"eid": eid}))
+
+
+@mcp.tool()
+def move_entity(eid: float, dx: float, dy: float) -> str:
+    """Move an entity by offset (dx, dy)."""
+    return str(query_librecad("moveEntity", {"eid": eid, "dx": dx, "dy": dy}))
+
+
+@mcp.tool()
+def rotate_entity(eid: float, cx: float, cy: float, angle: float) -> str:
+    """Rotate an entity around center (cx,cy) by angle (degrees)."""
+    return str(query_librecad("rotateEntity", {"eid": eid, "cx": cx, "cy": cy, "angle": angle}))
+
+
+@mcp.tool()
+def scale_entity(eid: float, cx: float, cy: float, sx: float, sy: float) -> str:
+    """Scale an entity relative to base point (cx,cy) by factors (sx, sy)."""
+    return str(query_librecad("scaleEntity", {"eid": eid, "cx": cx, "cy": cy, "sx": sx, "sy": sy}))
+
+
 # --- Architectural (Interior) Tools ---
 
 
@@ -150,6 +272,24 @@ def delete_layer(name: str) -> str:
     return str(query_librecad("deleteLayer", {"name": name}))
 
 
+@mcp.tool()
+def get_layer_properties(layer: str) -> str:
+    """Get color, line width, and line type for a specific layer."""
+    return str(query_librecad("getLayerProperties", {"layer": layer}))
+
+
+@mcp.tool()
+def set_layer_properties(layer: str, color: int = 0, line_width: str = "0.00mm", line_type: str = "SolidLine") -> str:
+    """Set color, line width, and line type for a specific layer.
+    color: 24-bit RGB integer (e.g. 16711680 for red).
+    line_width: string like '0.25mm', '0.50mm'.
+    line_type: SolidLine, DashLine, DotLine, CenterLine, DashDotLine, etc.
+    """
+    return str(query_librecad("setLayerProperties", {
+        "layer": layer, "color": color, "lineWidth": line_width, "lineType": line_type
+    }))
+
+
 # --- Block Tools ---
 
 
@@ -157,6 +297,21 @@ def delete_layer(name: str) -> str:
 def get_blocks() -> str:
     """Get a list of all blocks in the current drawing."""
     return str(query_librecad("getBlocks"))
+
+
+# --- Variable Tools ---
+
+
+@mcp.tool()
+def get_variable(key: str) -> str:
+    """Get a drawing variable value by key (e.g. DIMTXT, DIMASZ, LUNITS)."""
+    return str(query_librecad("getVariable", {"key": key}))
+
+
+@mcp.tool()
+def set_variable(key: str, value: float, code: int = 70) -> str:
+    """Set a drawing variable. code: 70 for integers, 40 for doubles."""
+    return str(query_librecad("setVariable", {"key": key, "value": value, "code": code}))
 
 
 # --- Construction Line Tools ---

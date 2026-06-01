@@ -21,6 +21,29 @@ public:
     void setLayer(const QString& name) override;
     void deleteLayer(const QString& name) override;
 
+    // New Core
+    void drawPoint(const Point& point) override;
+    void drawSplinePoints(const SplinePoints& spline) override;
+    void insertBlock(const BlockInsert& ins) override;
+    QString addBlockFromDisk(const QString& path) override;
+
+    // Dimensions
+    void addDimension(const Dimension& dim) override;
+
+    // Entity Operations
+    bool removeEntity(qulonglong eid) override;
+    bool moveEntity(qulonglong eid, double dx, double dy) override;
+    bool rotateEntity(qulonglong eid, double cx, double cy, double angle) override;
+    bool scaleEntity(qulonglong eid, double cx, double cy, double sx, double sy) override;
+
+    // Entity Queries
+    QJsonArray getAllEntityData() override;
+    QJsonObject getEntityDataById(qulonglong eid) override;
+
+    // Layer Properties
+    LayerProperties getLayerProperties(const QString& layerName) override;
+    bool setLayerProperties(const QString& layerName, int color, const QString& lineWidth, const QString& lineType) override;
+
     // Domain-Specific Commands
     void drawWall(const Wall& wall) override;
     void drawOpening(const Opening& opening) override;
@@ -32,11 +55,17 @@ public:
     QStringList getBlocks() override;
     QString getCurrentLayer() override;
 
+    // Variables
+    QVariant getVariable(const QString& key) override;
+    bool setVariable(const QString& key, const QVariant& value, int code) override;
+
     void commit() override;
 
 private:
     Document_Interface* m_dpi;
     QWidget* m_parent;
+
+    QJsonObject entityToJson(Plug_Entity* ent);
 };
 
 } // namespace mcp
