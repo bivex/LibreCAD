@@ -2,9 +2,10 @@
 #define MCP_BRIDGE_H
 
 #include <QObject>
+#include <QDialog>
 #include <QTcpServer>
-#include <QJsonObject>
 #include "qc_plugininterface.h"
+#include "document_interface.h"
 
 class MCP_Bridge : public QObject, public QC_PluginInterface
 {
@@ -19,6 +20,13 @@ public:
     virtual QString name() const override { return "MCP Bridge"; }
     virtual PluginCapabilities getCapabilities() const override;
     virtual void execComm(Document_Interface* doc, QWidget* parent, QString cmd) override;
+};
+
+class MCP_Bridge_Dialog : public QDialog {
+    Q_OBJECT
+public:
+    MCP_Bridge_Dialog(Document_Interface* doc, QWidget* parent);
+    ~MCP_Bridge_Dialog();
 
 private slots:
     void onNewConnection();
@@ -26,11 +34,8 @@ private slots:
     void onDisconnected();
 
 private:
-    void handleCommand(const QJsonObject& json);
-    
-    QTcpServer* m_server;
-    QWidget* m_parent;
     Document_Interface* m_doc;
+    QTcpServer* m_server;
 };
 
 #endif

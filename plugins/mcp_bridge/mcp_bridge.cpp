@@ -1,64 +1,67 @@
 #include <QJsonObject>
 #include <QJsonDocument>
 #include <QTcpSocket>
+#include <QVBoxLayout>
+#include <QLabel>
+#include <QPushButton>
 #include <QMessageBox>
 #include "mcp_bridge.h"
 #include "librecad_adapter.h"
 #include "command_processor.h"
 
-MCP_Bridge::MCP_Bridge() : m_server(nullptr), m_parent(nullptr), m_doc(nullptr) {}
-
-MCP_Bridge::~MCP_Bridge() {
-    if (m_server) {
-        m_server->close();
-        delete m_server;
-    }
-}
+MCP_Bridge::MCP_Bridge() {}
+MCP_Bridge::~MCP_Bridge() {}
 
 PluginCapabilities MCP_Bridge::getCapabilities() const {
     PluginCapabilities pluginCapabilities;
     pluginCapabilities.menuEntryPoints
         << PluginMenuLocation("plugins_menu", tr("Start MCP Bridge"),
-            tr("Start the Python MCP Bridge server (Clean Architecture)"));
+            tr("Start the Python MCP Bridge server (Persistent)"));
     return pluginCapabilities;
 }
 
 void MCP_Bridge::execComm(Document_Interface* doc, QWidget* parent, QString /*cmd*/) {
-    m_doc = doc;
-    m_parent = parent;
+    MCP_Bridge_Dialog dlg(doc, parent);
+    dlg.exec(); // This nested event loop keeps doc (on the stack of the caller) alive.
+}
 
-    if (!m_server) {
-        m_server = new QTcpServer(this);
-        connect(m_server, &QTcpServer::newConnection, this, &MCP_Bridge::onNewConnection);
-        
-        const int port = 12346; 
-        
-        if (!m_server->listen(QHostAddress::Any, port)) {
-            QMessageBox::critical(parent, "MCP Bridge", tr("Failed to start server: %1").arg(m_server->errorString()));
-            delete m_server;
-            m_server = nullptr;
-            return;
-        }
-        QMessageBox::information(parent, "MCP Bridge", tr("MCP Bridge server started on port %1").arg(port));
-    } else {
-        QMessageBox::information(parent, "MCP Bridge", tr("MCP Bridge server is already running."));
+MCP_Bridge_Dialog::MCP_Bridge_Dialog(Document_Interface* doc, QWidget* parent)
+    : QDialog(parent), m_doc(doc), m_server(nullptr) {
+    
+    setWindowTitle("MCP Bridge");
+    QVBoxLayout* layout = new QVBoxLayout(this);
+    layout->addWidget(new QLabel("MCP Bridge is running on port 12346.\nKeep this window open to process commands."));
+    
+    QPushButton* closeBtn = new QPushButton("Stop Bridge", this);
+    connect(closeBtn, &QPushButton::clicked, this, &QDialog::accept);
+    layout->addWidget(closeBtn);
+
+    m_server = new QTcpServer(this);
+    connect(m_server, &QTcpServer::newConnection, this, &MCP_Bridge_Dialog::onNewConnection);
+    
+    if (!m_server->listen(QHostAddress::Any, 12346)) {
+        QMessageBox::critical(this, "Error", "Failed to start server: " + m_server->errorString());
     }
 }
 
-void MCP_Bridge::onNewConnection() {
+MCP_Bridge_Dialog::~MCP_Bridge_Dialog() {
+    if (m_server) m_server->close();
+}
+
+void MCP_Bridge_Dialog::onNewConnection() {
     while (m_server->hasPendingConnections()) {
         QTcpSocket* socket = m_server->nextPendingConnection();
-        connect(socket, &QTcpSocket::readyRead, this, &MCP_Bridge::onReadyRead);
-        connect(socket, &QTcpSocket::disconnected, this, &MCP_Bridge::onDisconnected);
+        connect(socket, &QTcpSocket::readyRead, this, &MCP_Bridge_Dialog::onReadyRead);
+        connect(socket, &QTcpSocket::disconnected, this, &MCP_Bridge_Dialog::onDisconnected);
     }
 }
 
-void MCP_Bridge::onDisconnected() {
+void MCP_Bridge_Dialog::onDisconnected() {
     QTcpSocket* socket = qobject_cast<QTcpSocket*>(sender());
     if (socket) socket->deleteLater();
 }
 
-void MCP_Bridge::onReadyRead() {
+void MCP_Bridge_Dialog::onReadyRead() {
     QTcpSocket* socket = qobject_cast<QTcpSocket*>(sender());
     if (!socket) return;
 
@@ -66,9 +69,7 @@ void MCP_Bridge::onReadyRead() {
     QJsonDocument doc = QJsonDocument::fromJson(data);
     if (doc.isNull() || !doc.isObject()) return;
 
-    if (!m_doc) return; // No document to draw on
-    
-    mcp::LibreCadDrawingAdapter adapter(m_doc, m_parent);
+    mcp::LibreCadDrawingAdapter adapter(m_doc, this);
     mcp::CommandProcessor processor(adapter);
     
     QJsonObject response = processor.process(doc.object());
