@@ -2,7 +2,7 @@
 #define LIBRECAD_ADAPTER_H
 
 #include "mcp_domain.h"
-#include "doc_plugin_interface.h"
+#include "document_interface.h"
 
 namespace mcp {
 
@@ -10,6 +10,7 @@ class LibreCadDrawingAdapter : public IDrawingService {
 public:
     LibreCadDrawingAdapter(Document_Interface* dpi, QWidget* parent);
 
+    // Core Commands
     void drawLine(const Line& line) override;
     void drawCircle(const Circle& circle) override;
     void drawArc(const Arc& arc) override;
@@ -19,6 +20,13 @@ public:
     void setLayer(const QString& name) override;
     void deleteLayer(const QString& name) override;
 
+    // Domain-Specific Commands
+    void drawWall(const Wall& wall) override;
+    void drawOpening(const Opening& opening) override;
+    void drawTacticalSymbol(const TacticalSymbol& sym) override;
+    void drawTacticalLine(const TacticalLine& line) override;
+
+    // Queries
     QStringList getLayers() override;
     QStringList getBlocks() override;
     QString getCurrentLayer() override;

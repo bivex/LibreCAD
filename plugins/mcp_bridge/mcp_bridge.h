@@ -30,6 +30,7 @@ private:
     
     QTcpServer* m_server;
     QWidget* m_parent;
+    Document_Interface* m_doc;
 };
 
 #endif

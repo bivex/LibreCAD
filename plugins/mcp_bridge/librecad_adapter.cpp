@@ -1,8 +1,9 @@
 #include "librecad_adapter.h"
-#include "qc_applicationwindow.h"
-#include "qc_mdiwindow.h"
-#include "qg_graphicview.h"
-#include "rs_math.h"
+#include <cmath>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 namespace mcp {
 
@@ -19,19 +20,41 @@ void LibreCadDrawingAdapter::drawCircle(const Circle& circle) {
     m_dpi->addCircle(&c, circle.radius);
 }
 
+void LibreCadDrawingAdapter::drawArc(const Arc& arc) {
+    QPointF c = arc.center;
+    m_dpi->addArc(&c, arc.radius, arc.startAngle, arc.endAngle);
+}
+
+void LibreCadDrawingAdapter::drawEllipse(const Ellipse& ellipse) {
+    QPointF c = ellipse.center;
+    QPointF e = ellipse.majorAxisEnd;
+    m_dpi->addEllipse(&c, &e, ellipse.ratio, ellipse.startAngle, ellipse.endAngle);
+}
+
+void LibreCadDrawingAdapter::drawPolyline(const Polyline& polyline) {
+    std::vector<Plug_VertexData> pts;
+    for (const auto& p : polyline.points) {
+        pts.push_back(Plug_VertexData(p, 0.0));
+    }
+    m_dpi->addPolyline(pts, polyline.closed);
+}
+
 void LibreCadDrawingAdapter::addText(const Text& text) {
     QPointF p = text.position;
-    m_dpi->addText(text.content, "standard", &p, text.size, 0.0, DPI::HLeft, DPI::VBase);
+    m_dpi->addText(text.content, "standard", &p, text.size, 0.0, DPI::HAlignLeft, DPI::VAlignBottom);
 }
 
 void LibreCadDrawingAdapter::setLayer(const QString& name) {
     m_dpi->setLayer(name);
 }
 
-// --- Interior Implementation ---
+void LibreCadDrawingAdapter::deleteLayer(const QString& name) {
+    m_dpi->deleteLayer(name);
+}
+
+// --- Interior Architecture ---
 
 void LibreCadDrawingAdapter::drawWall(const Wall& wall) {
-    // A wall is drawn as two parallel lines based on thickness
     double dx = wall.end.x() - wall.start.x();
     double dy = wall.end.y() - wall.start.y();
     double length = std::sqrt(dx*dx + dy*dy);
@@ -51,24 +74,20 @@ void LibreCadDrawingAdapter::drawWall(const Wall& wall) {
 
 void LibreCadDrawingAdapter::drawOpening(const Opening& opening) {
     if (opening.type == "door") {
-        // Line for the door and an arc for the swing
         m_dpi->addLine(const_cast<QPointF*>(&opening.start), const_cast<QPointF*>(&opening.end));
         double radius = std::sqrt(std::pow(opening.end.x()-opening.start.x(), 2) + std::pow(opening.end.y()-opening.start.y(), 2));
         double angle = std::atan2(opening.end.y()-opening.start.y(), opening.end.x()-opening.start.x()) * 180.0 / M_PI;
         m_dpi->addArc(const_cast<QPointF*>(&opening.start), radius, angle, angle + 90.0);
     } else {
-        // Window is two lines across the opening
         m_dpi->addLine(const_cast<QPointF*>(&opening.start), const_cast<QPointF*>(&opening.end));
-        // Add a second offset line for window detail
     }
 }
 
-// --- Military Implementation ---
+// --- Military Tools ---
 
 void LibreCadDrawingAdapter::drawTacticalSymbol(const TacticalSymbol& sym) {
     m_dpi->setLayer(sym.identity == "hostile" ? "MIL_HOSTILE" : "MIL_FRIENDLY");
     
-    // Draw box for friendly, diamond for hostile (simplified)
     double s = sym.size / 2.0;
     if (sym.identity == "hostile") {
         QPointF p1(sym.position.x(), sym.position.y() + s);
@@ -84,8 +103,7 @@ void LibreCadDrawingAdapter::drawTacticalSymbol(const TacticalSymbol& sym) {
         m_dpi->addLine(&p1, &p2); m_dpi->addLine(&p2, &p3); m_dpi->addLine(&p3, &p4); m_dpi->addLine(&p4, &p1);
     }
     
-    // Add unit type text
-    m_dpi->addText(sym.unitType, "standard", const_cast<QPointF*>(&sym.position), s * 0.5, 0.0, DPI::HCenter, DPI::VMiddle);
+    m_dpi->addText(sym.unitType, "standard", const_cast<QPointF*>(&sym.position), s * 0.5, 0.0, DPI::HAlignCenter, DPI::VAlignMiddle);
 }
 
 void LibreCadDrawingAdapter::drawTacticalLine(const TacticalLine& line) {
@@ -93,17 +111,16 @@ void LibreCadDrawingAdapter::drawTacticalLine(const TacticalLine& line) {
     std::vector<Plug_VertexData> pts;
     for (const auto& p : line.points) pts.push_back(Plug_VertexData(p, 0.0));
     m_dpi->addPolyline(pts, false);
-    
-    if (line.type == "axis_of_advance") {
-        // Add arrow head logic here
-    }
 }
 
+// --- Queries ---
+
 QStringList LibreCadDrawingAdapter::getLayers() { return m_dpi->getAllLayer(); }
+QStringList LibreCadDrawingAdapter::getBlocks() { return m_dpi->getAllBlocks(); }
+QString LibreCadDrawingAdapter::getCurrentLayer() { return m_dpi->getCurrentLayer(); }
 
 void LibreCadDrawingAdapter::commit() {
-    QC_ApplicationWindow* app = QC_ApplicationWindow::getAppWindow().get();
-    if (QC_MDIWindow* w = app->getCurrentMDIWindow()) w->getGraphicView()->redraw();
+    m_dpi->updateView();
 }
 
 } // namespace mcp

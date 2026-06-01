@@ -1,18 +1,15 @@
-TARGET = mcp_bridge
+QT       += widgets network
 TEMPLATE = lib
 CONFIG += plugin
+VERSION = 1.0.0
+TARGET = $$qtLibraryTarget(mcp_bridge)
 
-QT += widgets network
+GENERATED_DIR = ../../generated/plugin/mcp_bridge
+# Use common project definitions.
+include(../../common.pri)
 
-INCLUDEPATH += ../../librecad/src/plugins \
-               ../../librecad/src/main \
-               ../../librecad/src/ui/main \
-               ../../librecad/src/lib/engine \
-               ../../librecad/src/lib/actions \
-               ../../librecad/src/lib/gui \
-               ../../librecad/src/ui \
-               ../../librecad/src/ui/view \
-               ../../librecad/src/ui/dock_widgets
+# For plugins
+INCLUDEPATH    += ../../librecad/src/plugins
 
 HEADERS += mcp_bridge.h \
            mcp_domain.h \
