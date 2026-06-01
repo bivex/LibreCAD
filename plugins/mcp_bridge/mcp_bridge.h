@@ -4,6 +4,8 @@
 #include <QObject>
 #include <QDialog>
 #include <QTcpServer>
+#include <QTimer>
+#include <QQueue>
 #include "qc_plugininterface.h"
 #include "document_interface.h"
 
@@ -27,6 +29,11 @@ private:
     MCP_Bridge_Dialog* m_dialog = nullptr;
 };
 
+struct PendingCommand {
+    QJsonObject request;
+    QTcpSocket* socket;
+};
+
 class MCP_Bridge_Dialog : public QDialog {
     Q_OBJECT
 public:
@@ -39,12 +46,17 @@ private slots:
     void onNewConnection();
     void onReadyRead();
     void onDisconnected();
+    void processQueue();
 
 private:
+    void executeCommand(const PendingCommand& cmd);
+
     Document_Interface* m_doc;
     QTcpServer* m_server;
     QPushButton* m_stopBtn;
     QPushButton* m_hideBtn;
+    QTimer* m_timer;
+    QQueue<PendingCommand> m_queue;
 };
 
 #endif

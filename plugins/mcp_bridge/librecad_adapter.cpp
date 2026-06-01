@@ -143,8 +143,7 @@ QStringList LibreCadDrawingAdapter::getBlocks() { return m_dpi ? m_dpi->getAllBl
 QString LibreCadDrawingAdapter::getCurrentLayer() { return m_dpi ? m_dpi->getCurrentLayer() : QString(); }
 
 void LibreCadDrawingAdapter::commit() {
-    qDebug() << "[MCP BRIDGE] commit called.";
-    if (m_dpi) m_dpi->updateView();
+    // updateView() can crash if called from socket callback context
 }
 
 } // namespace mcp

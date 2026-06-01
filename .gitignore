@@ -116,3 +116,4 @@ core.*
 .pixi
 *.egg-info
 libraries/lciconengine/moc_predefs.h
+/tests/__pycache__

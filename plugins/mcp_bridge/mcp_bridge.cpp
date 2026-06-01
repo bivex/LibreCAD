@@ -1,12 +1,12 @@
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QTcpSocket>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
-#include <QMessageBox>
-#include <QDebug>
+#include <QTimer>
 #include <cstdio>
 #include "mcp_bridge.h"
 #include "librecad_adapter.h"
@@ -77,12 +77,18 @@ MCP_Bridge_Dialog::MCP_Bridge_Dialog(Document_Interface* doc, QWidget* parent)
 
     layout->addLayout(btnLayout);
 
+    m_timer = new QTimer(this);
+    m_timer->setInterval(50);
+    connect(m_timer, &QTimer::timeout, this, &MCP_Bridge_Dialog::processQueue);
+    m_timer->start();
+
     m_server = new QTcpServer(this);
     connect(m_server, &QTcpServer::newConnection, this, &MCP_Bridge_Dialog::onNewConnection);
     m_server->listen(QHostAddress::Any, 12346);
 }
 
 MCP_Bridge_Dialog::~MCP_Bridge_Dialog() {
+    if (m_timer) m_timer->stop();
     if (m_server) m_server->close();
 }
 
@@ -107,11 +113,51 @@ void MCP_Bridge_Dialog::onReadyRead() {
     QTcpSocket* socket = qobject_cast<QTcpSocket*>(sender());
     if (!socket) return;
 
-    QJsonDocument doc = QJsonDocument::fromJson(socket->readAll());
-    if (doc.isNull() || !doc.isObject()) return;
+    QByteArray data = socket->readAll();
+    QJsonParseError parseErr;
+    QJsonDocument doc = QJsonDocument::fromJson(data, &parseErr);
+    if (doc.isNull() || !doc.isObject()) {
+        QJsonObject err;
+        err["status"] = "error";
+        err["message"] = QString("Invalid JSON: ") + parseErr.errorString();
+        socket->write(QJsonDocument(err).toJson());
+        socket->waitForBytesWritten(1000);
+        return;
+    }
 
-    mcp::LibreCadDrawingAdapter adapter(m_doc, this);
-    mcp::CommandProcessor processor(adapter);
-    QJsonObject response = processor.process(doc.object());
-    socket->write(QJsonDocument(response).toJson());
+    // Queue command for processing by timer
+    PendingCommand cmd;
+    cmd.request = doc.object();
+    cmd.socket = socket;
+    m_queue.enqueue(cmd);
+}
+
+void MCP_Bridge_Dialog::processQueue() {
+    if (m_queue.isEmpty()) return;
+
+    PendingCommand cmd = m_queue.dequeue();
+    executeCommand(cmd);
+}
+
+void MCP_Bridge_Dialog::executeCommand(const PendingCommand& cmd) {
+    QJsonObject response;
+    QString method = cmd.request["method"].toString();
+
+    if (!m_doc) {
+        response["status"] = "error";
+        response["message"] = "No document available";
+    } else {
+        mcp::LibreCadDrawingAdapter adapter(m_doc, this);
+        mcp::CommandProcessor processor(adapter);
+        response = processor.process(cmd.request);
+    }
+
+    QByteArray respData = QJsonDocument(response).toJson();
+    fprintf(stderr, "[MCP BRIDGE] %s -> %s\n", method.toUtf8().constData(), respData.constData());
+    fflush(stderr);
+
+    if (cmd.socket && cmd.socket->state() == QAbstractSocket::ConnectedState) {
+        cmd.socket->write(respData);
+        cmd.socket->waitForBytesWritten(1000);
+    }
 }
