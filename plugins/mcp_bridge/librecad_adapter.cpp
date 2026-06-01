@@ -601,7 +601,9 @@ bool LibreCadDrawingAdapter::setVariable(const QString& key, const QVariant& val
     qDebug() << "[MCP BRIDGE] setVariable called:" << key;
     if (!m_dpi) return false;
 
-    if (value.type() == QVariant::Int || value.type() == QVariant::LongLong)
+    // DXF codes: 70-79 are typically 16-bit integers, 280-289 are 8/16-bit, 290-299 are bools (int), 370-379 are bools/ints.
+    // 40-59 are doubles.
+    if ((code >= 70 && code <= 79) || (code >= 280 && code <= 299) || (code >= 370 && code <= 379))
         return m_dpi->addVariable(key, value.toInt(), code);
     else
         return m_dpi->addVariable(key, value.toDouble(), code);

@@ -82,21 +82,31 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
         });
     } else if (method == "addPolyline") {
         QJsonArray pointsArr = params["points"].toArray();
-        QVector<QPointF> points;
-        for (int i = 0; i < pointsArr.size(); ++i) {
-            QJsonObject p = pointsArr[i].toObject();
-            points.append(QPointF(p["x"].toDouble(), p["y"].toDouble()));
+        if (pointsArr.size() < 2) {
+            response["status"] = "error";
+            response["message"] = "addPolyline requires at least 2 points";
+        } else {
+            QVector<QPointF> points;
+            for (int i = 0; i < pointsArr.size(); ++i) {
+                QJsonObject p = pointsArr[i].toObject();
+                points.append(QPointF(p["x"].toDouble(), p["y"].toDouble()));
+            }
+            m_service.drawPolyline({points, params["closed"].toBool(false)});
         }
-        m_service.drawPolyline({points, params["closed"].toBool(false)});
 
     } else if (method == "addLines") {
         QJsonArray pointsArr = params["points"].toArray();
-        QVector<QPointF> points;
-        for (int i = 0; i < pointsArr.size(); ++i) {
-            QJsonObject p = pointsArr[i].toObject();
-            points.append(QPointF(p["x"].toDouble(), p["y"].toDouble()));
+        if (pointsArr.size() < 2) {
+            response["status"] = "error";
+            response["message"] = "addLines requires at least 2 points";
+        } else {
+            QVector<QPointF> points;
+            for (int i = 0; i < pointsArr.size(); ++i) {
+                QJsonObject p = pointsArr[i].toObject();
+                points.append(QPointF(p["x"].toDouble(), p["y"].toDouble()));
+            }
+            m_service.drawLines({points, params["closed"].toBool(false)});
         }
-        m_service.drawLines({points, params["closed"].toBool(false)});
 
     } else if (method == "addRectangle") {
         double x = params["x"].toDouble();
@@ -123,12 +133,17 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
 
     } else if (method == "addSplinePoints") {
         QJsonArray pointsArr = params["points"].toArray();
-        QVector<QPointF> points;
-        for (int i = 0; i < pointsArr.size(); ++i) {
-            QJsonObject p = pointsArr[i].toObject();
-            points.append(QPointF(p["x"].toDouble(), p["y"].toDouble()));
+        if (pointsArr.size() < 2) {
+            response["status"] = "error";
+            response["message"] = "addSplinePoints requires at least 2 points";
+        } else {
+            QVector<QPointF> points;
+            for (int i = 0; i < pointsArr.size(); ++i) {
+                QJsonObject p = pointsArr[i].toObject();
+                points.append(QPointF(p["x"].toDouble(), p["y"].toDouble()));
+            }
+            m_service.drawSplinePoints({points, params["closed"].toBool(false)});
         }
-        m_service.drawSplinePoints({points, params["closed"].toBool(false)});
 
     } else if (method == "addInsert") {
         m_service.insertBlock({

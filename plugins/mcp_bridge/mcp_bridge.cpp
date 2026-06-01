@@ -148,7 +148,7 @@ void MCP_Bridge_Dialog::executeCommand(const PendingCommand& cmd) {
         response = processor.process(cmd.request);
     }
 
-    QByteArray respData = QJsonDocument(response).toJson();
+    QByteArray respData = QJsonDocument(response).toJson(QJsonDocument::Compact);
     fprintf(stderr, "[MCP BRIDGE] %s -> %s\n", method.toUtf8().constData(), respData.constData());
     fflush(stderr);
 
