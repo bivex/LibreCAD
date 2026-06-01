@@ -143,13 +143,19 @@ void MCP_Bridge_Dialog::executeCommand(const PendingCommand& cmd) {
     QJsonObject response;
     QString method = cmd.request["method"].toString();
 
+    fprintf(stderr, "[MCP BRIDGE] executeCommand: method=%s, m_doc=%p\n",
+            method.toUtf8().constData(), (void*)m_doc);
+    fflush(stderr);
+
     if (!m_doc) {
         response["status"] = "error";
         response["message"] = "No document available";
     } else {
+        fprintf(stderr, "[MCP BRIDGE] calling processor.process()...\n"); fflush(stderr);
         mcp::LibreCadDrawingAdapter adapter(m_doc, this);
         mcp::CommandProcessor processor(adapter);
         response = processor.process(cmd.request);
+        fprintf(stderr, "[MCP BRIDGE] processor.process() returned OK\n"); fflush(stderr);
     }
 
     QByteArray respData = QJsonDocument(response).toJson();
@@ -159,5 +165,6 @@ void MCP_Bridge_Dialog::executeCommand(const PendingCommand& cmd) {
     if (cmd.socket && cmd.socket->state() == QAbstractSocket::ConnectedState) {
         cmd.socket->write(respData);
         cmd.socket->waitForBytesWritten(1000);
+        fprintf(stderr, "[MCP BRIDGE] response sent to client\n"); fflush(stderr);
     }
 }
