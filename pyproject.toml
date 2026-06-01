@@ -1,0 +1,10 @@
+[project]
+name = "librecad-mcp"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.0",
+]
+
+[project.scripts]
+librecad-mcp = "librecad_mcp:main"
