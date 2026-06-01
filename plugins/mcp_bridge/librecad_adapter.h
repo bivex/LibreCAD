@@ -3,6 +3,7 @@
 
 #include "mcp_domain.h"
 #include "document_interface.h"
+#include <QDebug>
 
 namespace mcp {
 

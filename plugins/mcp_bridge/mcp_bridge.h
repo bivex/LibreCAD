@@ -17,7 +17,7 @@ public:
     MCP_Bridge();
     virtual ~MCP_Bridge();
 
-    virtual QString name() const override { return "MCP Bridge"; }
+    virtual QString name() const override;
     virtual PluginCapabilities getCapabilities() const override;
     virtual void execComm(Document_Interface* doc, QWidget* parent, QString cmd) override;
 };
