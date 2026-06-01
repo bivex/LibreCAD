@@ -42,17 +42,12 @@ void MCP_Bridge::execComm(Document_Interface* doc, QWidget* parent, QString cmd)
         return;
     }
 
-    if (m_dialog) {
-        m_dialog->show();
-        m_dialog->raise();
-        m_dialog->activateWindow();
-        return;
-    }
-
-    m_dialog = new MCP_Bridge_Dialog(doc, parent);
-    m_dialog->setAttribute(Qt::WA_DeleteOnClose);
-    connect(m_dialog, &QObject::destroyed, this, [this]() { m_dialog = nullptr; });
-    m_dialog->show();
+    // Use modal dialog (exec) — this keeps execPlug() on the stack so
+    // Doc_plugin_interface stays alive.  All other LibreCAD plugins use
+    // this same pattern.  The dialog's event loop processes TCP/Timer
+    // events normally.
+    MCP_Bridge_Dialog dlg(doc, parent);
+    dlg.exec();
 }
 
 // --- DIALOG ---
@@ -60,22 +55,14 @@ void MCP_Bridge::execComm(Document_Interface* doc, QWidget* parent, QString cmd)
 MCP_Bridge_Dialog::MCP_Bridge_Dialog(Document_Interface* doc, QWidget* parent)
     : QDialog(parent), m_doc(doc), m_server(nullptr) {
 
-    setWindowTitle("MCP Bridge");
+    setWindowTitle("MCP Bridge — Port 12346");
     setMinimumWidth(300);
     QVBoxLayout* layout = new QVBoxLayout(this);
-    layout->addWidget(new QLabel("MCP Bridge Active\nPort: 12346"));
+    layout->addWidget(new QLabel("MCP Bridge Active\nListening on port 12346\n\nDrawing commands via TCP are live."));
 
-    QHBoxLayout* btnLayout = new QHBoxLayout();
-
-    m_stopBtn = new QPushButton("Stop", this);
-    connect(m_stopBtn, &QPushButton::clicked, this, &QDialog::close);
-    btnLayout->addWidget(m_stopBtn);
-
-    m_hideBtn = new QPushButton("Hide", this);
-    connect(m_hideBtn, &QPushButton::clicked, this, &MCP_Bridge_Dialog::hideAndKeepRunning);
-    btnLayout->addWidget(m_hideBtn);
-
-    layout->addLayout(btnLayout);
+    QPushButton* stopBtn = new QPushButton("Stop Bridge", this);
+    connect(stopBtn, &QPushButton::clicked, this, &QDialog::accept);
+    layout->addWidget(stopBtn);
 
     m_timer = new QTimer(this);
     m_timer->setInterval(50);
@@ -84,16 +71,14 @@ MCP_Bridge_Dialog::MCP_Bridge_Dialog(Document_Interface* doc, QWidget* parent)
 
     m_server = new QTcpServer(this);
     connect(m_server, &QTcpServer::newConnection, this, &MCP_Bridge_Dialog::onNewConnection);
-    m_server->listen(QHostAddress::Any, 12346);
+    if (!m_server->listen(QHostAddress::Any, 12346)) {
+        LOG_STEP("ERROR: could not listen on port 12346");
+    }
 }
 
 MCP_Bridge_Dialog::~MCP_Bridge_Dialog() {
     if (m_timer) m_timer->stop();
     if (m_server) m_server->close();
-}
-
-void MCP_Bridge_Dialog::hideAndKeepRunning() {
-    hide();
 }
 
 void MCP_Bridge_Dialog::onNewConnection() {
@@ -125,7 +110,6 @@ void MCP_Bridge_Dialog::onReadyRead() {
         return;
     }
 
-    // Queue command for processing by timer
     PendingCommand cmd;
     cmd.request = doc.object();
     cmd.socket = socket;
@@ -143,19 +127,13 @@ void MCP_Bridge_Dialog::executeCommand(const PendingCommand& cmd) {
     QJsonObject response;
     QString method = cmd.request["method"].toString();
 
-    fprintf(stderr, "[MCP BRIDGE] executeCommand: method=%s, m_doc=%p\n",
-            method.toUtf8().constData(), (void*)m_doc);
-    fflush(stderr);
-
     if (!m_doc) {
         response["status"] = "error";
         response["message"] = "No document available";
     } else {
-        fprintf(stderr, "[MCP BRIDGE] calling processor.process()...\n"); fflush(stderr);
         mcp::LibreCadDrawingAdapter adapter(m_doc, this);
         mcp::CommandProcessor processor(adapter);
         response = processor.process(cmd.request);
-        fprintf(stderr, "[MCP BRIDGE] processor.process() returned OK\n"); fflush(stderr);
     }
 
     QByteArray respData = QJsonDocument(response).toJson();
@@ -165,6 +143,5 @@ void MCP_Bridge_Dialog::executeCommand(const PendingCommand& cmd) {
     if (cmd.socket && cmd.socket->state() == QAbstractSocket::ConnectedState) {
         cmd.socket->write(respData);
         cmd.socket->waitForBytesWritten(1000);
-        fprintf(stderr, "[MCP BRIDGE] response sent to client\n"); fflush(stderr);
     }
 }
