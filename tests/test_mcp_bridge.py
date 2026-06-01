@@ -206,3 +206,166 @@ class TestEncoding:
         text = "АБВГДЕЖЗИКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ" * 10
         resp = send_command("addText", {"text": text, "x": 0, "y": 0, "size": 2})
         assert resp["status"] == "ok"
+
+
+# --- construction: line tools ---
+
+class TestConstructionLines:
+    def test_line_2points(self):
+        resp = send_command("line2Points", {"x1": 0, "y1": 0, "x2": 5, "y2": 5})
+        assert resp["status"] == "ok"
+
+    def test_line_angle(self):
+        resp = send_command("lineAngle", {"x": 0, "y": 0, "angle": 45, "length": 10})
+        assert resp["status"] == "ok"
+
+    def test_line_angle_default_length(self):
+        resp = send_command("lineAngle", {"x": 5, "y": 5, "angle": 90})
+        assert resp["status"] == "ok"
+
+    def test_line_horizontal(self):
+        resp = send_command("lineHorizontal", {"x": 0, "y": 0, "length": 15})
+        assert resp["status"] == "ok"
+
+    def test_line_vertical(self):
+        resp = send_command("lineVertical", {"x": 0, "y": 0, "length": 20})
+        assert resp["status"] == "ok"
+
+    def test_line_parallel_through_point(self):
+        resp = send_command("lineParallelThroughPoint", {
+            "lx1": 0, "ly1": 0, "lx2": 10, "ly2": 0, "px": 0, "py": 5
+        })
+        assert resp["status"] == "ok"
+
+    def test_line_parallel(self):
+        resp = send_command("lineParallel", {
+            "lx1": 0, "ly1": 0, "lx2": 10, "ly2": 0, "distance": 3
+        })
+        assert resp["status"] == "ok"
+
+    def test_line_bisector(self):
+        resp = send_command("lineBisector", {
+            "vx": 0, "vy": 0, "ax": 10, "ay": 0, "bx": 0, "by": 10, "length": 8
+        })
+        assert resp["status"] == "ok"
+
+    def test_line_tangent_pc(self):
+        resp = send_command("lineTangentPC", {"px": 15, "py": 5, "cx": 5, "cy": 5, "r": 3})
+        assert resp["status"] == "ok"
+        assert "tangentPoints" in resp
+
+    def test_line_tangent_pc_inside_circle(self):
+        resp = send_command("lineTangentPC", {"px": 5, "py": 5, "cx": 5, "cy": 5, "r": 3})
+        assert resp["status"] == "error"
+
+    def test_line_tangent_cc(self):
+        resp = send_command("lineTangentCC", {
+            "cx1": 0, "cy1": 0, "r1": 2, "cx2": 15, "cy2": 0, "r2": 2
+        })
+        assert resp["status"] == "ok"
+
+    def test_line_tangent_orthogonal(self):
+        resp = send_command("lineTangentOrthogonal", {
+            "cx": 5, "cy": 5, "r": 3,
+            "lx1": 0, "ly1": 0, "lx2": 10, "ly2": 0, "length": 10
+        })
+        assert resp["status"] == "ok"
+
+    def test_line_orthogonal(self):
+        resp = send_command("lineOrthogonal", {
+            "px": 5, "py": 10, "lx1": 0, "ly1": 0, "lx2": 10, "ly2": 0
+        })
+        assert resp["status"] == "ok"
+        assert "footX" in resp
+        assert "footY" in resp
+
+    def test_line_relative_angle(self):
+        resp = send_command("lineRelativeAngle", {
+            "lx1": 0, "ly1": 0, "lx2": 10, "ly2": 0,
+            "px": 5, "py": 5, "angle": -90, "length": 8
+        })
+        assert resp["status"] == "ok"
+
+    def test_line_snake(self):
+        resp = send_command("lineSnake", {
+            "points": [{"x": 0, "y": 0}, {"x": 5, "y": 5}, {"x": 10, "y": 0}, {"x": 15, "y": 5}]
+        })
+        assert resp["status"] == "ok"
+
+    def test_line_snake_x(self):
+        resp = send_command("lineSnakeX", {"x": 0, "y": 0, "width": 10, "segments": 3, "gap": 3})
+        assert resp["status"] == "ok"
+
+    def test_line_snake_y(self):
+        resp = send_command("lineSnakeY", {"x": 0, "y": 0, "height": 10, "segments": 3, "gap": 3})
+        assert resp["status"] == "ok"
+
+    def test_line_angle_from_line(self):
+        resp = send_command("lineAngleFromLine", {
+            "lx1": 0, "ly1": 0, "lx2": 10, "ly2": 0,
+            "angle": 45, "length": 8, "t": 0.5
+        })
+        assert resp["status"] == "ok"
+
+    def test_line_orthogonal_from_line(self):
+        resp = send_command("lineOrthogonalFromLine", {
+            "lx1": 0, "ly1": 0, "lx2": 10, "ly2": 0,
+            "length": 5, "t": 0.5
+        })
+        assert resp["status"] == "ok"
+
+    def test_line_from_point_to_line(self):
+        resp = send_command("lineFromPointToLine", {
+            "px": 5, "py": 10, "lx1": 0, "ly1": 0, "lx2": 10, "ly2": 0
+        })
+        assert resp["status"] == "ok"
+        assert "footX" in resp
+        assert "footY" in resp
+
+
+# --- construction: slice/divide ---
+
+class TestSliceDivide:
+    def test_slice_divide_line(self):
+        resp = send_command("sliceDivideLine", {
+            "x1": 0, "y1": 0, "x2": 10, "y2": 0, "segments": 4
+        })
+        assert resp["status"] == "ok"
+        assert "points" in resp
+        assert len(resp["points"]) == 5
+
+    def test_slice_divide_line_default(self):
+        resp = send_command("sliceDivideLine", {"x1": 0, "y1": 0, "x2": 10, "y2": 0})
+        assert resp["status"] == "ok"
+
+    def test_slice_divide_circle(self):
+        resp = send_command("sliceDivideCircle", {
+            "cx": 5, "cy": 5, "r": 3, "segments": 6
+        })
+        assert resp["status"] == "ok"
+        assert "points" in resp
+        assert len(resp["points"]) == 6
+
+    def test_slice_divide_circle_default(self):
+        resp = send_command("sliceDivideCircle", {"cx": 0, "cy": 0, "r": 5})
+        assert resp["status"] == "ok"
+
+
+# --- construction: center marks ---
+
+class TestCenterMarks:
+    def test_center_mark(self):
+        resp = send_command("centerMark", {"cx": 5, "cy": 5, "size": 1.0})
+        assert resp["status"] == "ok"
+
+    def test_center_mark_default_size(self):
+        resp = send_command("centerMark", {"cx": 10, "cy": 10})
+        assert resp["status"] == "ok"
+
+    def test_centerline(self):
+        resp = send_command("centerline", {"cx": 5, "cy": 5, "r": 3, "extension": 2})
+        assert resp["status"] == "ok"
+
+    def test_centerline_default(self):
+        resp = send_command("centerline", {"cx": 0, "cy": 0, "r": 5})
+        assert resp["status"] == "ok"

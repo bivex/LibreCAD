@@ -159,5 +159,211 @@ def get_blocks() -> str:
     return str(query_librecad("getBlocks"))
 
 
+# --- Construction Line Tools ---
+
+
+@mcp.tool()
+def line_2points(x1: float, y1: float, x2: float, y2: float) -> str:
+    """Draw a line between two points."""
+    return str(query_librecad("line2Points", {"x1": x1, "y1": y1, "x2": x2, "y2": y2}))
+
+
+@mcp.tool()
+def line_angle(x: float, y: float, angle: float, length: float = 10.0) -> str:
+    """Draw a line from point (x,y) at given angle (degrees) with specified length."""
+    return str(query_librecad("lineAngle", {"x": x, "y": y, "angle": angle, "length": length}))
+
+
+@mcp.tool()
+def line_horizontal(x: float, y: float, length: float = 10.0) -> str:
+    """Draw a horizontal line from (x,y) with given length."""
+    return str(query_librecad("lineHorizontal", {"x": x, "y": y, "length": length}))
+
+
+@mcp.tool()
+def line_vertical(x: float, y: float, length: float = 10.0) -> str:
+    """Draw a vertical line from (x,y) with given length."""
+    return str(query_librecad("lineVertical", {"x": x, "y": y, "length": length}))
+
+
+@mcp.tool()
+def line_parallel_through_point(
+    lx1: float, ly1: float, lx2: float, ly2: float, px: float, py: float
+) -> str:
+    """Draw a line parallel to reference line through a given point.
+    Reference line: (lx1,ly1)-(lx2,ly2), passes through (px,py)."""
+    return str(query_librecad("lineParallelThroughPoint", {
+        "lx1": lx1, "ly1": ly1, "lx2": lx2, "ly2": ly2, "px": px, "py": py
+    }))
+
+
+@mcp.tool()
+def line_parallel(
+    lx1: float, ly1: float, lx2: float, ly2: float, distance: float
+) -> str:
+    """Draw a line parallel to reference line at given distance.
+    Reference line: (lx1,ly1)-(lx2,ly2)."""
+    return str(query_librecad("lineParallel", {
+        "lx1": lx1, "ly1": ly1, "lx2": lx2, "ly2": ly2, "distance": distance
+    }))
+
+
+@mcp.tool()
+def line_bisector(
+    vx: float, vy: float, ax: float, ay: float, bx: float, by: float, length: float = 10.0
+) -> str:
+    """Draw the angle bisector at vertex (vx,vy) between rays to (ax,ay) and (bx,by)."""
+    return str(query_librecad("lineBisector", {
+        "vx": vx, "vy": vy, "ax": ax, "ay": ay, "bx": bx, "by": by, "length": length
+    }))
+
+
+@mcp.tool()
+def line_tangent_pc(px: float, py: float, cx: float, cy: float, r: float) -> str:
+    """Draw tangent lines from point (px,py) to circle at (cx,cy) with radius r."""
+    return str(query_librecad("lineTangentPC", {"px": px, "py": py, "cx": cx, "cy": cy, "r": r}))
+
+
+@mcp.tool()
+def line_tangent_cc(
+    cx1: float, cy1: float, r1: float, cx2: float, cy2: float, r2: float
+) -> str:
+    """Draw common tangent lines between two circles."""
+    return str(query_librecad("lineTangentCC", {
+        "cx1": cx1, "cy1": cy1, "r1": r1, "cx2": cx2, "cy2": cy2, "r2": r2
+    }))
+
+
+@mcp.tool()
+def line_tangent_orthogonal(
+    cx: float, cy: float, r: float,
+    lx1: float, ly1: float, lx2: float, ly2: float, length: float = 10.0
+) -> str:
+    """Draw tangent to circle perpendicular to a reference line."""
+    return str(query_librecad("lineTangentOrthogonal", {
+        "cx": cx, "cy": cy, "r": r,
+        "lx1": lx1, "ly1": ly1, "lx2": lx2, "ly2": ly2, "length": length
+    }))
+
+
+@mcp.tool()
+def line_orthogonal(
+    px: float, py: float, lx1: float, ly1: float, lx2: float, ly2: float
+) -> str:
+    """Draw perpendicular line from point (px,py) to line (lx1,ly1)-(lx2,ly2)."""
+    return str(query_librecad("lineOrthogonal", {
+        "px": px, "py": py, "lx1": lx1, "ly1": ly1, "lx2": lx2, "ly2": ly2
+    }))
+
+
+@mcp.tool()
+def line_relative_angle(
+    lx1: float, ly1: float, lx2: float, ly2: float,
+    px: float, py: float, angle: float, length: float = 10.0
+) -> str:
+    """Draw a line at relative angle from reference line through point."""
+    return str(query_librecad("lineRelativeAngle", {
+        "lx1": lx1, "ly1": ly1, "lx2": lx2, "ly2": ly2,
+        "px": px, "py": py, "angle": angle, "length": length
+    }))
+
+
+@mcp.tool()
+def line_snake(points: List[Dict[str, float]]) -> str:
+    """Draw connected line segments through a list of {x,y} points."""
+    return str(query_librecad("lineSnake", {"points": points}))
+
+
+@mcp.tool()
+def line_snake_x(
+    x: float, y: float, width: float = 10.0, segments: int = 3, gap: float = 3.0
+) -> str:
+    """Draw a horizontal snake pattern (alternating horizontal segments connected by verticals)."""
+    return str(query_librecad("lineSnakeX", {
+        "x": x, "y": y, "width": width, "segments": segments, "gap": gap
+    }))
+
+
+@mcp.tool()
+def line_snake_y(
+    x: float, y: float, height: float = 10.0, segments: int = 3, gap: float = 3.0
+) -> str:
+    """Draw a vertical snake pattern (alternating vertical segments connected by horizontals)."""
+    return str(query_librecad("lineSnakeY", {
+        "x": x, "y": y, "height": height, "segments": segments, "gap": gap
+    }))
+
+
+@mcp.tool()
+def line_angle_from_line(
+    lx1: float, ly1: float, lx2: float, ly2: float,
+    angle: float, length: float = 10.0, t: float = 0.5
+) -> str:
+    """Draw a line at given angle from a reference line, starting at offset t (0=start, 1=end)."""
+    return str(query_librecad("lineAngleFromLine", {
+        "lx1": lx1, "ly1": ly1, "lx2": lx2, "ly2": ly2,
+        "angle": angle, "length": length, "t": t
+    }))
+
+
+@mcp.tool()
+def line_orthogonal_from_line(
+    lx1: float, ly1: float, lx2: float, ly2: float,
+    length: float = 10.0, t: float = 0.5
+) -> str:
+    """Draw perpendicular from a point on line at offset t (0=start, 1=end)."""
+    return str(query_librecad("lineOrthogonalFromLine", {
+        "lx1": lx1, "ly1": ly1, "lx2": lx2, "ly2": ly2, "length": length, "t": t
+    }))
+
+
+@mcp.tool()
+def line_from_point_to_line(
+    px: float, py: float, lx1: float, ly1: float, lx2: float, ly2: float
+) -> str:
+    """Draw shortest line (perpendicular drop) from point to line."""
+    return str(query_librecad("lineFromPointToLine", {
+        "px": px, "py": py, "lx1": lx1, "ly1": ly1, "lx2": lx2, "ly2": ly2
+    }))
+
+
+# --- Construction: Slice/Divide Tools ---
+
+
+@mcp.tool()
+def slice_divide_line(
+    x1: float, y1: float, x2: float, y2: float, segments: int = 2, mark_size: float = 0.5
+) -> str:
+    """Divide a line into N equal segments and mark division points."""
+    return str(query_librecad("sliceDivideLine", {
+        "x1": x1, "y1": y1, "x2": x2, "y2": y2, "segments": segments, "markSize": mark_size
+    }))
+
+
+@mcp.tool()
+def slice_divide_circle(
+    cx: float, cy: float, r: float, segments: int = 4, mark_size: float = 0.3
+) -> str:
+    """Divide a circle into N equal arcs and mark division points."""
+    return str(query_librecad("sliceDivideCircle", {
+        "cx": cx, "cy": cy, "r": r, "segments": segments, "markSize": mark_size
+    }))
+
+
+# --- Construction: Center Mark Tools ---
+
+
+@mcp.tool()
+def center_mark(cx: float, cy: float, size: float = 1.0) -> str:
+    """Draw a cross mark at center point (cx,cy)."""
+    return str(query_librecad("centerMark", {"cx": cx, "cy": cy, "size": size}))
+
+
+@mcp.tool()
+def centerline(cx: float, cy: float, r: float, extension: float = 2.0) -> str:
+    """Draw centerline cross through circle center, extending beyond radius."""
+    return str(query_librecad("centerline", {"cx": cx, "cy": cy, "r": r, "extension": extension}))
+
+
 if __name__ == "__main__":
     mcp.run()
