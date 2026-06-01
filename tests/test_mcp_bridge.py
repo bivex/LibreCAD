@@ -21,7 +21,7 @@ def send_command(method: str, params: dict = None) -> dict:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(5)
         s.connect((HOST, PORT))
-        s.sendall(json.dumps(payload).encode("utf-8"))
+        s.sendall(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
         # Wait for response (queue-based processing adds ~50ms delay)
         data = b""
         while True:
@@ -153,3 +153,56 @@ class TestBlocks:
         resp = send_command("getBlocks")
         assert resp["status"] == "ok"
         assert isinstance(resp["blocks"], list)
+
+
+# --- encoding ---
+
+class TestEncoding:
+    """Verify UTF-8 round-trip for Cyrillic and special characters."""
+
+    def test_cyrillic_layer_name(self):
+        resp = send_command("setLayer", {"name": "Окоп_Профиль"})
+        assert resp["status"] == "ok"
+        resp = send_command("deleteLayer", {"name": "Окоп_Профиль"})
+        assert resp["status"] == "ok"
+
+    def test_cyrillic_text(self):
+        resp = send_command("addText", {"text": "Привет мир", "x": 0, "y": 0, "size": 5})
+        assert resp["status"] == "ok"
+
+    def test_mixed_cyrillic_latin_text(self):
+        resp = send_command("addText", {"text": "MCP Тест Test-2025", "x": 0, "y": 0, "size": 5})
+        assert resp["status"] == "ok"
+
+    def test_unicode_symbols_text(self):
+        resp = send_command("addText", {"text": "→ ← ↑ ↓ ° ±", "x": 0, "y": 0, "size": 5})
+        assert resp["status"] == "ok"
+
+    def test_long_cyrillic_text(self):
+        text = "Профиль стрелкового окопа"
+        resp = send_command("addText", {"text": text, "x": 0, "y": 0, "size": 3})
+        assert resp["status"] == "ok"
+
+    def test_cyrillic_in_layers_list(self):
+        send_command("setLayer", {"name": "Слой_Тест"})
+        resp = send_command("getLayers")
+        assert resp["status"] == "ok"
+        assert "Слой_Тест" in resp["layers"]
+        send_command("deleteLayer", {"name": "Слой_Тест"})
+
+    def test_special_chars_in_text(self):
+        resp = send_command("addText", {"text": "M=500кг h=1.1м α=45°", "x": 0, "y": 0, "size": 5})
+        assert resp["status"] == "ok"
+
+    def test_json_escaping(self):
+        resp = send_command("addText", {"text": 'Quote: "test" and \\backslash', "x": 0, "y": 0, "size": 5})
+        assert resp["status"] == "ok"
+
+    def test_empty_text(self):
+        resp = send_command("addText", {"text": "", "x": 0, "y": 0, "size": 5})
+        assert resp["status"] == "ok"
+
+    def test_large_multibyte_payload(self):
+        text = "АБВГДЕЖЗИКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ" * 10
+        resp = send_command("addText", {"text": text, "x": 0, "y": 0, "size": 2})
+        assert resp["status"] == "ok"
