@@ -51,6 +51,15 @@ void LibreCadDrawingAdapter::drawPolyline(const Polyline& polyline) {
     if (m_dpi) m_dpi->addPolyline(pts, polyline.closed);
 }
 
+void LibreCadDrawingAdapter::drawLines(const Polyline& lines) {
+    qDebug() << "[MCP BRIDGE] drawLines called.";
+    if (!m_dpi) return;
+    std::vector<QPointF> pts;
+    for (const auto& p : lines.points)
+        pts.push_back(p);
+    m_dpi->addLines(pts, lines.closed);
+}
+
 void LibreCadDrawingAdapter::addText(const Text& text) {
     qDebug() << "[MCP BRIDGE] addText called.";
     QPointF p = text.position;
@@ -270,6 +279,63 @@ QJsonObject LibreCadDrawingAdapter::getEntityDataById(qulonglong eid) {
     return result;
 }
 
+QJsonArray LibreCadDrawingAdapter::getPolylineData(qulonglong eid) {
+    qDebug() << "[MCP BRIDGE] getPolylineData called:" << eid;
+    QJsonArray result;
+    if (!m_dpi) return result;
+
+    QList<Plug_Entity*> entities;
+    if (!m_dpi->getAllEntities(&entities, false)) return result;
+
+    for (auto* ent : entities) {
+        QHash<int, QVariant> data;
+        ent->getData(&data);
+        if (data.value(DPI::EID).toULongLong() == eid) {
+            QList<Plug_VertexData> verts;
+            ent->getPolylineData(&verts);
+            for (const auto& v : verts) {
+                result.append(QJsonObject{
+                    {"x", v.point.x()},
+                    {"y", v.point.y()},
+                    {"bulge", v.bulge}
+                });
+            }
+            delete ent;
+            return result;
+        }
+        delete ent;
+    }
+    return result;
+}
+
+bool LibreCadDrawingAdapter::updatePolylineData(qulonglong eid, const QJsonArray& vertices) {
+    qDebug() << "[MCP BRIDGE] updatePolylineData called:" << eid;
+    if (!m_dpi) return false;
+
+    QList<Plug_Entity*> entities;
+    if (!m_dpi->getAllEntities(&entities, false)) return false;
+
+    for (auto* ent : entities) {
+        QHash<int, QVariant> data;
+        ent->getData(&data);
+        if (data.value(DPI::EID).toULongLong() == eid) {
+            QList<Plug_VertexData> verts;
+            for (int i = 0; i < vertices.size(); ++i) {
+                QJsonObject v = vertices[i].toObject();
+                verts.append(Plug_VertexData(
+                    QPointF(v["x"].toDouble(), v["y"].toDouble()),
+                    v["bulge"].toDouble(0.0)
+                ));
+            }
+            ent->updatePolylineData(&verts);
+            delete ent;
+            return true;
+        }
+        delete ent;
+    }
+    return false;
+}
+
 bool LibreCadDrawingAdapter::removeEntity(qulonglong eid) {
     qDebug() << "[MCP BRIDGE] removeEntity called:" << eid;
     if (!m_dpi) return false;
@@ -344,6 +410,49 @@ bool LibreCadDrawingAdapter::scaleEntity(qulonglong eid, double cx, double cy, d
         ent->getData(&data);
         if (data.value(DPI::EID).toULongLong() == eid) {
             ent->scale(QPointF(cx, cy), QPointF(sx, sy));
+            delete ent;
+            return true;
+        }
+        delete ent;
+    }
+    return false;
+}
+
+bool LibreCadDrawingAdapter::moveRotateEntity(qulonglong eid, double dx, double dy, double cx, double cy, double angle) {
+    qDebug() << "[MCP BRIDGE] moveRotateEntity called:" << eid;
+    if (!m_dpi) return false;
+
+    QList<Plug_Entity*> entities;
+    if (!m_dpi->getAllEntities(&entities, false)) return false;
+
+    for (auto* ent : entities) {
+        QHash<int, QVariant> data;
+        ent->getData(&data);
+        if (data.value(DPI::EID).toULongLong() == eid) {
+            ent->moveRotate(QPointF(dx, dy), QPointF(cx, cy), angle);
+            delete ent;
+            return true;
+        }
+        delete ent;
+    }
+    return false;
+}
+
+bool LibreCadDrawingAdapter::updateEntityData(qulonglong eid, const QHash<int, QVariant>& newData) {
+    qDebug() << "[MCP BRIDGE] updateEntityData called:" << eid;
+    if (!m_dpi) return false;
+
+    QList<Plug_Entity*> entities;
+    if (!m_dpi->getAllEntities(&entities, false)) return false;
+
+    for (auto* ent : entities) {
+        QHash<int, QVariant> data;
+        ent->getData(&data);
+        if (data.value(DPI::EID).toULongLong() == eid) {
+            QHash<int, QVariant> merged = data;
+            for (auto it = newData.constBegin(); it != newData.constEnd(); ++it)
+                merged[it.key()] = it.value();
+            ent->updateData(&merged);
             delete ent;
             return true;
         }
@@ -461,6 +570,17 @@ void LibreCadDrawingAdapter::drawTacticalLine(const TacticalLine& line) {
 QStringList LibreCadDrawingAdapter::getLayers() { return m_dpi ? m_dpi->getAllLayer() : QStringList(); }
 QStringList LibreCadDrawingAdapter::getBlocks() { return m_dpi ? m_dpi->getAllBlocks() : QStringList(); }
 QString LibreCadDrawingAdapter::getCurrentLayer() { return m_dpi ? m_dpi->getCurrentLayer() : QString(); }
+
+void LibreCadDrawingAdapter::unselectEntities() {
+    qDebug() << "[MCP BRIDGE] unselectEntities called.";
+    if (m_dpi) m_dpi->unselectEntities();
+}
+
+QString LibreCadDrawingAdapter::realToStr(double num, int units, int prec) {
+    qDebug() << "[MCP BRIDGE] realToStr called:" << num;
+    if (m_dpi) return m_dpi->realToStr(num, units, prec);
+    return QString::number(num);
+}
 
 // --- Variables ---
 

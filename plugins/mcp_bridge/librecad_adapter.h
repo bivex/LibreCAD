@@ -17,6 +17,7 @@ public:
     void drawArc(const Arc& arc) override;
     void drawEllipse(const Ellipse& ellipse) override;
     void drawPolyline(const Polyline& polyline) override;
+    void drawLines(const Polyline& lines) override;
     void addText(const Text& text) override;
     void setLayer(const QString& name) override;
     void deleteLayer(const QString& name) override;
@@ -35,10 +36,14 @@ public:
     bool moveEntity(qulonglong eid, double dx, double dy) override;
     bool rotateEntity(qulonglong eid, double cx, double cy, double angle) override;
     bool scaleEntity(qulonglong eid, double cx, double cy, double sx, double sy) override;
+    bool moveRotateEntity(qulonglong eid, double dx, double dy, double cx, double cy, double angle) override;
+    bool updateEntityData(qulonglong eid, const QHash<int, QVariant>& data) override;
 
     // Entity Queries
     QJsonArray getAllEntityData() override;
     QJsonObject getEntityDataById(qulonglong eid) override;
+    QJsonArray getPolylineData(qulonglong eid) override;
+    bool updatePolylineData(qulonglong eid, const QJsonArray& vertices) override;
 
     // Layer Properties
     LayerProperties getLayerProperties(const QString& layerName) override;
@@ -54,6 +59,8 @@ public:
     QStringList getLayers() override;
     QStringList getBlocks() override;
     QString getCurrentLayer() override;
+    void unselectEntities() override;
+    QString realToStr(double num, int units = 0, int prec = 0) override;
 
     // Variables
     QVariant getVariable(const QString& key) override;

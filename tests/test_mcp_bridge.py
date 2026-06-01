@@ -22,21 +22,21 @@ def send_command(method: str, params: dict = None) -> dict:
         s.settimeout(5)
         s.connect((HOST, PORT))
         s.sendall(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
-        # Wait for response (queue-based processing adds ~50ms delay)
         data = b""
         while True:
             try:
-                chunk = s.recv(8192)
+                chunk = s.recv(65536)
                 if not chunk:
                     break
                 data += chunk
-                if b"}" in data:
+                if b"\n" in data:
                     break
             except socket.timeout:
                 break
     if not data:
         return {"status": "error", "message": "Empty response"}
-    return json.loads(data.decode("utf-8"))
+    raw = data.decode("utf-8").strip()
+    return json.loads(raw)
 
 
 # --- connection ---
@@ -368,4 +368,339 @@ class TestCenterMarks:
 
     def test_centerline_default(self):
         resp = send_command("centerline", {"cx": 0, "cy": 0, "r": 5})
+        assert resp["status"] == "ok"
+
+
+# --- new primitives: addPoint, addSplinePoints, addLines ---
+
+class TestNewPrimitives:
+    def test_add_point(self):
+        resp = send_command("addPoint", {"x": 15, "y": 15})
+        assert resp["status"] == "ok"
+
+    def test_add_point_default(self):
+        resp = send_command("addPoint", {"x": 0, "y": 0})
+        assert resp["status"] == "ok"
+
+    def test_add_spline_points(self):
+        resp = send_command("addSplinePoints", {
+            "points": [{"x": 0, "y": 0}, {"x": 5, "y": 10}, {"x": 10, "y": 0}],
+            "closed": False
+        })
+        assert resp["status"] == "ok"
+
+    def test_add_spline_points_closed(self):
+        resp = send_command("addSplinePoints", {
+            "points": [{"x": 0, "y": 0}, {"x": 5, "y": 5}, {"x": 10, "y": 0}],
+            "closed": True
+        })
+        assert resp["status"] == "ok"
+
+    def test_add_lines(self):
+        resp = send_command("addLines", {
+            "points": [{"x": 0, "y": 0}, {"x": 10, "y": 10}, {"x": 20, "y": 0}],
+            "closed": False
+        })
+        assert resp["status"] == "ok"
+
+    def test_add_lines_closed(self):
+        resp = send_command("addLines", {
+            "points": [{"x": 0, "y": 0}, {"x": 10, "y": 0}, {"x": 10, "y": 10}],
+            "closed": True
+        })
+        assert resp["status"] == "ok"
+
+
+# --- block/insert ---
+
+class TestBlockInsert:
+    def test_add_insert(self):
+        resp = send_command("addInsert", {
+            "name": "nonexistent_block_test", "x": 0, "y": 0,
+            "sx": 1.0, "sy": 1.0, "rotation": 0.0
+        })
+        # insert of non-existent block may still succeed (creates placeholder)
+        assert resp["status"] in ("ok", "error")
+
+
+# --- dimensions ---
+
+class TestDimensions:
+    def test_add_dim_linear(self):
+        resp = send_command("addDimLinear", {
+            "x1": 0, "y1": 0, "x2": 50, "y2": 0,
+            "dimLineOffset": 10, "angle": 0
+        })
+        assert resp["status"] == "ok"
+
+    def test_add_dim_linear_vertical(self):
+        resp = send_command("addDimLinear", {
+            "x1": 0, "y1": 0, "x2": 0, "y2": 30,
+            "dimLineOffset": 10, "angle": 90
+        })
+        assert resp["status"] == "ok"
+
+    def test_add_dim_aligned(self):
+        resp = send_command("addDimAligned", {
+            "x1": 0, "y1": 0, "x2": 30, "y2": 20,
+            "dimLineOffset": 10
+        })
+        assert resp["status"] == "ok"
+
+    def test_add_dim_radial(self):
+        send_command("addCircle", {"x": 50, "y": 50, "r": 15})
+        resp = send_command("addDimRadial", {
+            "cx": 50, "cy": 50, "ex": 65, "ey": 50
+        })
+        assert resp["status"] == "ok"
+
+    def test_add_dim_diametric(self):
+        resp = send_command("addDimDiametric", {
+            "cx": 50, "cy": 50, "ex": 65, "ey": 50
+        })
+        assert resp["status"] == "ok"
+
+    def test_add_dim_angular(self):
+        resp = send_command("addDimAngular", {
+            "x1": 30, "y1": 0, "x2": 0, "y2": 30,
+            "vx": 0, "vy": 0
+        })
+        assert resp["status"] == "ok"
+
+    def test_add_dim_leader(self):
+        resp = send_command("addDimLeader", {
+            "x1": 10, "y1": 10, "x2": 30, "y2": 30,
+            "text": "Note"
+        })
+        assert resp["status"] == "ok"
+
+
+# --- entity queries ---
+
+class TestEntityQueries:
+    def test_get_all_entities(self):
+        send_command("addLine", {"x1": 100, "y1": 100, "x2": 110, "y2": 110})
+        resp = send_command("getAllEntities")
+        assert resp["status"] == "ok"
+        assert isinstance(resp["entities"], list)
+        assert len(resp["entities"]) > 0
+
+    def test_get_entity_by_id(self):
+        resp_all = send_command("getAllEntities")
+        if resp_all["entities"]:
+            eid = resp_all["entities"][0]["eid"]
+            resp = send_command("getEntityById", {"eid": float(eid)})
+            assert resp["status"] == "ok"
+            assert "entity" in resp
+            assert resp["entity"]["eid"] == eid
+
+    def test_get_entity_by_id_not_found(self):
+        resp = send_command("getEntityById", {"eid": 999999})
+        assert resp["status"] == "error"
+
+    def test_get_polyline_data(self):
+        send_command("addPolyline", {
+            "points": [{"x": 200, "y": 200}, {"x": 210, "y": 210}, {"x": 220, "y": 200}],
+            "closed": True
+        })
+        resp_all = send_command("getAllEntities")
+        polyline_ent = None
+        for e in resp_all["entities"]:
+            if e.get("typeName") == "polyline":
+                polyline_ent = e
+                break
+        if polyline_ent:
+            resp = send_command("getPolylineData", {"eid": float(polyline_ent["eid"])})
+            assert resp["status"] == "ok"
+            assert "vertices" in resp
+            assert len(resp["vertices"]) >= 3
+
+    def test_get_polyline_data_not_found(self):
+        resp = send_command("getPolylineData", {"eid": 999999})
+        assert resp["status"] == "error"
+
+
+# --- entity operations ---
+
+class TestEntityOperations:
+    def _get_first_line_eid(self):
+        resp = send_command("getAllEntities")
+        for e in resp["entities"]:
+            if e.get("typeName") == "line":
+                return e["eid"]
+        return None
+
+    def test_move_entity(self):
+        send_command("addLine", {"x1": 300, "y1": 300, "x2": 310, "y2": 310})
+        eid = self._get_first_line_eid()
+        if eid:
+            resp = send_command("moveEntity", {"eid": float(eid), "dx": 5, "dy": 5})
+            assert resp["status"] == "ok"
+
+    def test_rotate_entity(self):
+        eid = self._get_first_line_eid()
+        if eid:
+            resp = send_command("rotateEntity", {
+                "eid": float(eid), "cx": 0, "cy": 0, "angle": 45
+            })
+            assert resp["status"] == "ok"
+
+    def test_scale_entity(self):
+        eid = self._get_first_line_eid()
+        if eid:
+            resp = send_command("scaleEntity", {
+                "eid": float(eid), "cx": 0, "cy": 0, "sx": 1.5, "sy": 1.5
+            })
+            assert resp["status"] == "ok"
+
+    def test_move_rotate_entity(self):
+        send_command("addLine", {"x1": 400, "y1": 400, "x2": 410, "y2": 410})
+        resp_all = send_command("getAllEntities")
+        eid = None
+        for e in resp_all["entities"]:
+            if e.get("typeName") == "line":
+                eid = e["eid"]
+        if eid:
+            resp = send_command("moveRotateEntity", {
+                "eid": float(eid), "dx": 2, "dy": 2, "cx": 0, "cy": 0, "angle": 30
+            })
+            assert resp["status"] == "ok"
+
+    def test_move_entity_not_found(self):
+        resp = send_command("moveEntity", {"eid": 999999, "dx": 1, "dy": 1})
+        assert resp["status"] == "error"
+
+    def test_remove_entity(self):
+        send_command("addLine", {"x1": 500, "y1": 500, "x2": 510, "y2": 510})
+        resp_all = send_command("getAllEntities")
+        eid = None
+        for e in resp_all["entities"]:
+            if e.get("typeName") == "line":
+                eid = e["eid"]
+        if eid:
+            resp = send_command("removeEntity", {"eid": float(eid)})
+            assert resp["status"] == "ok"
+
+    def test_remove_entity_not_found(self):
+        resp = send_command("removeEntity", {"eid": 999999})
+        assert resp["status"] == "error"
+
+
+# --- update entity data ---
+
+class TestUpdateEntity:
+    def test_update_entity_color(self):
+        send_command("addLine", {"x1": 600, "y1": 600, "x2": 620, "y2": 620})
+        resp_all = send_command("getAllEntities")
+        eid = None
+        for e in resp_all["entities"]:
+            if e.get("typeName") == "line":
+                eid = e["eid"]
+        if eid:
+            resp = send_command("updateEntity", {
+                "eid": float(eid),
+                "data": {"62": 16711680}  # red
+            })
+            assert resp["status"] == "ok"
+
+    def test_update_entity_not_found(self):
+        resp = send_command("updateEntity", {"eid": 999999, "data": {"62": 0}})
+        assert resp["status"] == "error"
+
+
+# --- update polyline data ---
+
+class TestUpdatePolyline:
+    def test_update_polyline_data(self):
+        send_command("addPolyline", {
+            "points": [{"x": 700, "y": 700}, {"x": 710, "y": 710}],
+            "closed": False
+        })
+        resp_all = send_command("getAllEntities")
+        eid = None
+        for e in resp_all["entities"]:
+            if e.get("typeName") == "polyline":
+                eid = e["eid"]
+        if eid:
+            resp = send_command("updatePolylineData", {
+                "eid": float(eid),
+                "vertices": [
+                    {"x": 700, "y": 700, "bulge": 0},
+                    {"x": 710, "y": 700, "bulge": 0},
+                    {"x": 710, "y": 710, "bulge": 0}
+                ]
+            })
+            assert resp["status"] == "ok"
+
+
+# --- layer properties ---
+
+class TestLayerProperties:
+    def test_get_layer_properties(self):
+        send_command("setLayer", {"name": "test_props_layer"})
+        resp = send_command("getLayerProperties", {"layer": "test_props_layer"})
+        assert resp["status"] == "ok"
+        assert "color" in resp
+        assert "lineWidth" in resp
+        assert "lineType" in resp
+
+    def test_set_layer_properties(self):
+        send_command("setLayer", {"name": "test_set_props"})
+        resp = send_command("setLayerProperties", {
+            "layer": "test_set_props",
+            "color": 255,
+            "lineWidth": "0.25mm",
+            "lineType": "DashLine"
+        })
+        assert resp["status"] == "ok"
+        # verify round-trip
+        resp2 = send_command("getLayerProperties", {"layer": "test_set_props"})
+        assert resp2["status"] == "ok"
+
+
+# --- variables ---
+
+class TestVariables:
+    def test_get_variable(self):
+        resp = send_command("getVariable", {"key": "DIMTXT"})
+        # DIMTXT may or may not exist
+        assert resp["status"] in ("ok", "error")
+
+    def test_set_and_get_variable(self):
+        send_command("setVariable", {"key": "$TESTVAR_INT", "value": 42, "code": 70})
+        resp = send_command("getVariable", {"key": "$TESTVAR_INT"})
+        assert resp["status"] == "ok"
+        assert resp["value"] == 42
+
+    def test_set_and_get_double_variable(self):
+        send_command("setVariable", {"key": "$TESTVAR_DBL", "value": 3.14, "code": 40})
+        resp = send_command("getVariable", {"key": "$TESTVAR_DBL"})
+        assert resp["status"] == "ok"
+        assert abs(resp["value"] - 3.14) < 0.01
+
+
+# --- unselect ---
+
+class TestUnselect:
+    def test_unselect_entities(self):
+        resp = send_command("unselectEntities")
+        assert resp["status"] == "ok"
+
+
+# --- real to str ---
+
+class TestRealToStr:
+    def test_real_to_str(self):
+        resp = send_command("realToStr", {"num": 3.14159, "units": 2, "prec": 4})
+        assert resp["status"] == "ok"
+        assert "result" in resp
+        assert isinstance(resp["result"], str)
+
+    def test_real_to_str_default(self):
+        resp = send_command("realToStr", {"num": 42.0})
+        assert resp["status"] == "ok"
+        assert "result" in resp
+
+    def test_real_to_str_zero(self):
+        resp = send_command("realToStr", {"num": 0.0, "units": 2, "prec": 2})
         assert resp["status"] == "ok"

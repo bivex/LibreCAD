@@ -64,6 +64,7 @@ public:
     virtual void drawArc(const Arc& arc) = 0;
     virtual void drawEllipse(const Ellipse& ellipse) = 0;
     virtual void drawPolyline(const Polyline& polyline) = 0;
+    virtual void drawLines(const Polyline& lines) = 0;
     virtual void addText(const Text& text) = 0;
     virtual void setLayer(const QString& name) = 0;
     virtual void deleteLayer(const QString& name) = 0;
@@ -82,10 +83,14 @@ public:
     virtual bool moveEntity(qulonglong eid, double dx, double dy) = 0;
     virtual bool rotateEntity(qulonglong eid, double cx, double cy, double angle) = 0;
     virtual bool scaleEntity(qulonglong eid, double cx, double cy, double sx, double sy) = 0;
+    virtual bool moveRotateEntity(qulonglong eid, double dx, double dy, double cx, double cy, double angle) = 0;
+    virtual bool updateEntityData(qulonglong eid, const QHash<int, QVariant>& data) = 0;
 
     // Entity Queries
     virtual QJsonArray getAllEntityData() = 0;
     virtual QJsonObject getEntityDataById(qulonglong eid) = 0;
+    virtual QJsonArray getPolylineData(qulonglong eid) = 0;
+    virtual bool updatePolylineData(qulonglong eid, const QJsonArray& vertices) = 0;
 
     // Layer Properties
     virtual LayerProperties getLayerProperties(const QString& layerName) = 0;
@@ -101,6 +106,8 @@ public:
     virtual QStringList getLayers() = 0;
     virtual QStringList getBlocks() = 0;
     virtual QString getCurrentLayer() = 0;
+    virtual void unselectEntities() = 0;
+    virtual QString realToStr(double num, int units = 0, int prec = 0) = 0;
 
     // Variables
     virtual QVariant getVariable(const QString& key) = 0;

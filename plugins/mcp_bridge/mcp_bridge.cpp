@@ -154,6 +154,7 @@ void MCP_Bridge_Dialog::executeCommand(const PendingCommand& cmd) {
 
     if (cmd.socket && cmd.socket->state() == QAbstractSocket::ConnectedState) {
         cmd.socket->write(respData);
+        cmd.socket->write("\n");
         cmd.socket->waitForBytesWritten(1000);
     }
 }

@@ -77,6 +77,13 @@ def add_polyline(points: List[Dict[str, float]], closed: bool = False) -> str:
 
 
 @mcp.tool()
+def add_lines(points: List[Dict[str, float]], closed: bool = False) -> str:
+    """Draw connected line segments through a list of {x,y} points (simplified polyline without bulge).
+    Set closed=True to close the shape."""
+    return str(query_librecad("addLines", {"points": points, "closed": closed}))
+
+
+@mcp.tool()
 def add_text(text: str, x: float, y: float, size: float = 10.0) -> str:
     """Place text at position (x,y) with given font size."""
     return str(query_librecad("addText", {"text": text, "x": x, "y": y, "size": size}))
@@ -204,6 +211,32 @@ def scale_entity(eid: float, cx: float, cy: float, sx: float, sy: float) -> str:
     return str(query_librecad("scaleEntity", {"eid": eid, "cx": cx, "cy": cy, "sx": sx, "sy": sy}))
 
 
+@mcp.tool()
+def move_rotate_entity(eid: float, dx: float, dy: float, cx: float, cy: float, angle: float) -> str:
+    """Move an entity by (dx,dy) and then rotate it around (cx,cy) by angle (degrees)."""
+    return str(query_librecad("moveRotateEntity", {"eid": eid, "dx": dx, "dy": dy, "cx": cx, "cy": cy, "angle": angle}))
+
+
+@mcp.tool()
+def update_entity(eid: float, data: Dict[str, Any]) -> str:
+    """Update properties of an existing entity. data keys are DPI::EDATA integer codes as strings.
+    Common keys: '8' = layer, '62' = color, '6' = lineType, '38' = lineWidth,
+    '10'/'20' = start x/y, '11'/'21' = end x/y, '1' = textContent, '40' = height."""
+    return str(query_librecad("updateEntity", {"eid": eid, "data": data}))
+
+
+@mcp.tool()
+def get_polyline_data(eid: float) -> str:
+    """Get vertices of a polyline entity by its ID. Returns list of {x, y, bulge} objects."""
+    return str(query_librecad("getPolylineData", {"eid": eid}))
+
+
+@mcp.tool()
+def update_polyline_data(eid: float, vertices: List[Dict[str, float]]) -> str:
+    """Replace all vertices of a polyline entity. Each vertex is {x, y, bulge}. Bulge 0 = straight segment."""
+    return str(query_librecad("updatePolylineData", {"eid": eid, "vertices": vertices}))
+
+
 # --- Architectural (Interior) Tools ---
 
 
@@ -312,6 +345,19 @@ def get_variable(key: str) -> str:
 def set_variable(key: str, value: float, code: int = 70) -> str:
     """Set a drawing variable. code: 70 for integers, 40 for doubles."""
     return str(query_librecad("setVariable", {"key": key, "value": value, "code": code}))
+
+
+@mcp.tool()
+def unselect_entities() -> str:
+    """Clear all entity selections in the current drawing."""
+    return str(query_librecad("unselectEntities"))
+
+
+@mcp.tool()
+def real_to_str(num: float, units: int = 0, prec: int = 0) -> str:
+    """Convert a number to string using drawing units format and precision.
+    units: 0=current, 1=Scientific, 2=Decimal, 3=Engineering, 4=Architectural, 5=Fractional, 6=ArchitecturalMetric."""
+    return str(query_librecad("realToStr", {"num": num, "units": units, "prec": prec}))
 
 
 # --- Construction Line Tools ---

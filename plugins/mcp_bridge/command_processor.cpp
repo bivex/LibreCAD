@@ -88,6 +88,16 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
             points.append(QPointF(p["x"].toDouble(), p["y"].toDouble()));
         }
         m_service.drawPolyline({points, params["closed"].toBool(false)});
+
+    } else if (method == "addLines") {
+        QJsonArray pointsArr = params["points"].toArray();
+        QVector<QPointF> points;
+        for (int i = 0; i < pointsArr.size(); ++i) {
+            QJsonObject p = pointsArr[i].toObject();
+            points.append(QPointF(p["x"].toDouble(), p["y"].toDouble()));
+        }
+        m_service.drawLines({points, params["closed"].toBool(false)});
+
     } else if (method == "addRectangle") {
         double x = params["x"].toDouble();
         double y = params["y"].toDouble();
@@ -251,6 +261,52 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
             response["message"] = "Entity not found";
         }
 
+    } else if (method == "moveRotateEntity") {
+        qulonglong eid = QString::number(params["eid"].toDouble()).toULongLong();
+        if (!m_service.moveRotateEntity(eid,
+                    params["dx"].toDouble(), params["dy"].toDouble(),
+                    params["cx"].toDouble(), params["cy"].toDouble(),
+                    params["angle"].toDouble())) {
+            response["status"] = "error";
+            response["message"] = "Entity not found";
+        }
+
+    } else if (method == "updateEntity") {
+        qulonglong eid = QString::number(params["eid"].toDouble()).toULongLong();
+        QJsonObject dataObj = params["data"].toObject();
+        QHash<int, QVariant> data;
+        for (auto it = dataObj.begin(); it != dataObj.end(); ++it) {
+            int key = it.key().toInt();
+            if (it.value().isString())
+                data[key] = it.value().toString();
+            else if (it.value().isDouble())
+                data[key] = it.value().toDouble();
+            else
+                data[key] = it.value().toVariant();
+        }
+        if (!m_service.updateEntityData(eid, data)) {
+            response["status"] = "error";
+            response["message"] = "Entity not found";
+        }
+
+    } else if (method == "getPolylineData") {
+        qulonglong eid = QString::number(params["eid"].toDouble()).toULongLong();
+        QJsonArray verts = m_service.getPolylineData(eid);
+        if (verts.isEmpty()) {
+            response["status"] = "error";
+            response["message"] = "Polyline not found or has no vertices";
+        } else {
+            response["vertices"] = verts;
+        }
+
+    } else if (method == "updatePolylineData") {
+        qulonglong eid = QString::number(params["eid"].toDouble()).toULongLong();
+        QJsonArray verts = params["vertices"].toArray();
+        if (!m_service.updatePolylineData(eid, verts)) {
+            response["status"] = "error";
+            response["message"] = "Polyline not found";
+        }
+
     // ========== Layer Properties ==========
 
     } else if (method == "getLayerProperties") {
@@ -289,6 +345,17 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
             response["status"] = "error";
             response["message"] = "Failed to set variable";
         }
+
+    } else if (method == "unselectEntities") {
+        m_service.unselectEntities();
+
+    } else if (method == "realToStr") {
+        QString str = m_service.realToStr(
+            params["num"].toDouble(),
+            params["units"].toInt(0),
+            params["prec"].toInt(0)
+        );
+        response["result"] = str;
 
     // ========== Architectural ==========
 
