@@ -7,6 +7,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QTimer>
+#include <QEventLoop>
 #include <cstdio>
 #include "mcp_bridge.h"
 #include "librecad_adapter.h"
@@ -42,12 +43,15 @@ void MCP_Bridge::execComm(Document_Interface* doc, QWidget* parent, QString cmd)
         return;
     }
 
-    // Use modal dialog (exec) — this keeps execPlug() on the stack so
-    // Doc_plugin_interface stays alive.  All other LibreCAD plugins use
-    // this same pattern.  The dialog's event loop processes TCP/Timer
-    // events normally.
+    // Non-modal dialog + QEventLoop keeps execComm() on the stack
+    // so Doc_plugin_interface stays alive, but the user can still
+    // interact with the main LibreCAD window.
     MCP_Bridge_Dialog dlg(doc, parent);
-    dlg.exec();
+    dlg.show();
+
+    QEventLoop loop;
+    connect(&dlg, &QDialog::finished, &loop, &QEventLoop::quit);
+    loop.exec();
 }
 
 // --- DIALOG ---
@@ -60,9 +64,17 @@ MCP_Bridge_Dialog::MCP_Bridge_Dialog(Document_Interface* doc, QWidget* parent)
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->addWidget(new QLabel("MCP Bridge Active\nListening on port 12346\n\nDrawing commands via TCP are live."));
 
+    QHBoxLayout* btnLayout = new QHBoxLayout();
+
     QPushButton* stopBtn = new QPushButton("Stop Bridge", this);
     connect(stopBtn, &QPushButton::clicked, this, &QDialog::accept);
-    layout->addWidget(stopBtn);
+    btnLayout->addWidget(stopBtn);
+
+    QPushButton* hideBtn = new QPushButton("Hide", this);
+    connect(hideBtn, &QPushButton::clicked, this, &QDialog::hide);
+    btnLayout->addWidget(hideBtn);
+
+    layout->addLayout(btnLayout);
 
     m_timer = new QTimer(this);
     m_timer->setInterval(50);
