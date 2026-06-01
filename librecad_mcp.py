@@ -18,7 +18,7 @@ def query_librecad(method: str, params: Dict[str, Any] = None) -> Dict[str, Any]
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(5)
             s.connect((LIBRECAD_HOST, LIBRECAD_PORT))
-            s.sendall(json.dumps(payload).encode("utf-8"))
+            s.sendall(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
             data = b""
             while True:
                 try:
