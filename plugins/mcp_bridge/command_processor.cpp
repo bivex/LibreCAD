@@ -224,14 +224,16 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
         m_service.addText({
             params["text"].toString(),
             {params["x"].toDouble(), params["y"].toDouble()},
-            params["size"].toDouble(10.0)
+            params["size"].toDouble(10.0),
+            params["font"].toString("unicode")
         });
     } else if (method == "addMText") {
         m_service.addMText({
             params["text"].toString(),
             {params["x"].toDouble(), params["y"].toDouble()},
             params["height"].toDouble(10.0),
-            params["angle"].toDouble(0.0)
+            params["angle"].toDouble(0.0),
+            params["font"].toString("unicode")
         });
 
     // ========== New Primitives ==========

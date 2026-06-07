@@ -101,13 +101,13 @@ void LibreCadDrawingAdapter::drawSolid(const Solid& solid) {
 }
 
 void LibreCadDrawingAdapter::addText(const Text& text) {
-    qDebug() << "[MCP BRIDGE] addText called.";
+    qDebug() << "[MCP BRIDGE] addText called with font:" << text.font;
     QPointF p = text.position;
-    if (m_dpi) m_dpi->addText(text.content, "standard", &p, text.size, 0.0, DPI::HAlignCenter, DPI::VAlignMiddle);
+    if (m_dpi) m_dpi->addText(text.content, text.font, &p, text.size, 0.0, DPI::HAlignCenter, DPI::VAlignMiddle);
 }
 
 void LibreCadDrawingAdapter::addMText(const MText& mtext) {
-    qDebug() << "[MCP BRIDGE] addMText called.";
+    qDebug() << "[MCP BRIDGE] addMText called with font:" << mtext.font;
     if (!m_dpi) return;
     Plug_Entity* ent = m_dpi->newEntity(DPI::MTEXT);
     if (!ent) return;
@@ -117,6 +117,7 @@ void LibreCadDrawingAdapter::addMText(const MText& mtext) {
     data[DPI::HEIGHT] = mtext.height;
     data[DPI::STARTANGLE] = mtext.angle;
     data[DPI::TEXTCONTENT] = mtext.content;
+    data[DPI::TXTSTYLE] = mtext.font;
     ent->updateData(&data);
     m_dpi->addEntity(ent);
 }
