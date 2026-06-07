@@ -17,6 +17,7 @@ struct Arc { QPointF center; double radius; double startAngle; double endAngle; 
 struct Ellipse { QPointF center; QPointF majorAxisEnd; double ratio; double startAngle; double endAngle; };
 struct Polyline { QVector<QPointF> points; bool closed; };
 struct Text { QString content; QPointF position; double size; };
+struct MText { QString content; QPointF position; double height; double angle; };
 struct Point { QPointF position; };
 struct SplinePoints { QVector<QPointF> points; bool closed; };
 
@@ -66,6 +67,7 @@ public:
     virtual void drawPolyline(const Polyline& polyline) = 0;
     virtual void drawLines(const Polyline& lines) = 0;
     virtual void addText(const Text& text) = 0;
+    virtual void addMText(const MText& mtext) = 0;
     virtual void setLayer(const QString& name) = 0;
     virtual void deleteLayer(const QString& name) = 0;
 
@@ -81,6 +83,7 @@ public:
     // Entity Operations
     virtual bool removeEntity(qulonglong eid) = 0;
     virtual bool moveEntity(qulonglong eid, double dx, double dy) = 0;
+    virtual bool offsetEntity(qulonglong eid, double distance) = 0;
     virtual bool rotateEntity(qulonglong eid, double cx, double cy, double angle) = 0;
     virtual bool scaleEntity(qulonglong eid, double cx, double cy, double sx, double sy) = 0;
     virtual bool moveRotateEntity(qulonglong eid, double dx, double dy, double cx, double cy, double angle) = 0;

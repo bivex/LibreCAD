@@ -117,11 +117,69 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
             {x, y}, {x+w, y}, {x+w, y+h}, {x, y+h}
         };
         m_service.drawPolyline({points, true});
+    } else if (method == "addHatch") {
+        QJsonArray pointsArr = params["points"].toArray();
+        double angle = params["angle"].toDouble(45.0);
+        double distance = params["distance"].toDouble(2.0);
+        if (pointsArr.size() < 3 || distance <= 0.0) {
+            response["status"] = "error";
+            response["message"] = "Invalid hatch parameters";
+        } else {
+            QVector<QPointF> poly;
+            for (int i = 0; i < pointsArr.size(); ++i) {
+                QJsonObject p = pointsArr[i].toObject();
+                poly.append(QPointF(p["x"].toDouble(), p["y"].toDouble()));
+            }
+            double minX = poly[0].x(), maxX = poly[0].x();
+            double minY = poly[0].y(), maxY = poly[0].y();
+            for (const auto& p : poly) {
+                if(p.x() < minX) minX = p.x(); if(p.x() > maxX) maxX = p.x();
+                if(p.y() < minY) minY = p.y(); if(p.y() > maxY) maxY = p.y();
+            }
+            double diag = std::sqrt((maxX-minX)*(maxX-minX) + (maxY-minY)*(maxY-minY));
+            QPointF center((minX+maxX)/2.0, (minY+maxY)/2.0);
+
+            QPointF dir(std::cos(angle * M_PI / 180.0), std::sin(angle * M_PI / 180.0));
+            QPointF norm(-dir.y(), dir.x());
+
+            int steps = std::ceil((diag / 2.0) / distance);
+            for (int i = -steps; i <= steps; ++i) {
+                QPointF p_line(center.x() + norm.x() * i * distance, center.y() + norm.y() * i * distance);
+                QPointF l1(p_line.x() - dir.x() * diag, p_line.y() - dir.y() * diag);
+                QPointF l2(p_line.x() + dir.x() * diag, p_line.y() + dir.y() * diag);
+                QVector<QPointF> intersections;
+                for (int j = 0; j < poly.size(); ++j) {
+                    QPointF a = poly[j];
+                    QPointF b = poly[(j+1)%poly.size()];
+                    double denom = (l1.x()-l2.x())*(a.y()-b.y()) - (l1.y()-l2.y())*(a.x()-b.x());
+                    if (std::abs(denom) > 1e-9) {
+                        double t = ((l1.x()-a.x())*(a.y()-b.y()) - (l1.y()-a.y())*(a.x()-b.x())) / denom;
+                        double u = -((l1.x()-l2.x())*(l1.y()-a.y()) - (l1.y()-l2.y())*(l1.x()-a.x())) / denom;
+                        if (u >= 0.0 && u <= 1.0 && t >= 0.0 && t <= 1.0) {
+                            intersections.append(QPointF(l1.x() + t*(l2.x()-l1.x()), l1.y() + t*(l2.y()-l1.y())));
+                        }
+                    }
+                }
+                std::sort(intersections.begin(), intersections.end(), [&l1](const QPointF& a, const QPointF& b) {
+                    return std::pow(a.x()-l1.x(), 2) + std::pow(a.y()-l1.y(), 2) < std::pow(b.x()-l1.x(), 2) + std::pow(b.y()-l1.y(), 2);
+                });
+                for (int j = 0; j + 1 < intersections.size(); j += 2) {
+                    m_service.drawLine({intersections[j], intersections[j+1]});
+                }
+            }
+        }
     } else if (method == "addText") {
         m_service.addText({
             params["text"].toString(),
             {params["x"].toDouble(), params["y"].toDouble()},
             params["size"].toDouble(10.0)
+        });
+    } else if (method == "addMText") {
+        m_service.addMText({
+            params["text"].toString(),
+            {params["x"].toDouble(), params["y"].toDouble()},
+            params["height"].toDouble(10.0),
+            params["angle"].toDouble(0.0)
         });
 
     // ========== New Primitives ==========
@@ -259,6 +317,13 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
         if (!m_service.moveEntity(eid, params["dx"].toDouble(), params["dy"].toDouble())) {
             response["status"] = "error";
             response["message"] = "Entity not found";
+        }
+
+    } else if (method == "offsetEntity") {
+        qulonglong eid = QString::number(params["eid"].toDouble()).toULongLong();
+        if (!m_service.offsetEntity(eid, params["distance"].toDouble())) {
+            response["status"] = "error";
+            response["message"] = "Entity not found or offset not supported";
         }
 
     } else if (method == "rotateEntity") {

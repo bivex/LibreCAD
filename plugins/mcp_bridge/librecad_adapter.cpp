@@ -3,6 +3,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QVariant>
+#include <QTimer>
 #include <cmath>
 #include <QDebug>
 
@@ -64,6 +65,21 @@ void LibreCadDrawingAdapter::addText(const Text& text) {
     qDebug() << "[MCP BRIDGE] addText called.";
     QPointF p = text.position;
     if (m_dpi) m_dpi->addText(text.content, "standard", &p, text.size, 0.0, DPI::HAlignCenter, DPI::VAlignMiddle);
+}
+
+void LibreCadDrawingAdapter::addMText(const MText& mtext) {
+    qDebug() << "[MCP BRIDGE] addMText called.";
+    if (!m_dpi) return;
+    Plug_Entity* ent = m_dpi->newEntity(DPI::MTEXT);
+    if (!ent) return;
+    QHash<int, QVariant> data;
+    data[DPI::STARTX] = mtext.position.x();
+    data[DPI::STARTY] = mtext.position.y();
+    data[DPI::HEIGHT] = mtext.height;
+    data[DPI::STARTANGLE] = mtext.angle;
+    data[DPI::TEXTCONTENT] = mtext.content;
+    ent->updateData(&data);
+    m_dpi->addEntity(ent);
 }
 
 void LibreCadDrawingAdapter::setLayer(const QString& name) {
@@ -378,6 +394,61 @@ bool LibreCadDrawingAdapter::moveEntity(qulonglong eid, double dx, double dy) {
     return false;
 }
 
+bool LibreCadDrawingAdapter::offsetEntity(qulonglong eid, double distance) {
+    qDebug() << "[MCP BRIDGE] offsetEntity called:" << eid;
+    if (!m_dpi) return false;
+
+    QList<Plug_Entity*> entities;
+    if (!m_dpi->getAllEntities(&entities, false)) return false;
+
+    Plug_Entity* target = nullptr;
+    QHash<int, QVariant> data;
+    for (auto* ent : entities) {
+        if (!target) {
+            ent->getData(&data);
+            if (data.value(DPI::EID).toULongLong() == eid) {
+                target = ent;
+            } else {
+                delete ent;
+            }
+        } else {
+            delete ent;
+        }
+    }
+    if (!target) return false;
+
+    int etype = data.value(DPI::ETYPE).toInt();
+    if (etype == DPI::LINE) {
+        QPointF s(data[DPI::STARTX].toDouble(), data[DPI::STARTY].toDouble());
+        QPointF e(data[DPI::ENDX].toDouble(), data[DPI::ENDY].toDouble());
+        double dx = e.x() - s.x();
+        double dy = e.y() - s.y();
+        double len = std::sqrt(dx*dx + dy*dy);
+        if (len > 1e-9) {
+            double nx = -dy / len;
+            double ny = dx / len;
+            s.setX(s.x() + nx * distance);
+            s.setY(s.y() + ny * distance);
+            e.setX(e.x() + nx * distance);
+            e.setY(e.y() + ny * distance);
+            m_dpi->addLine(&s, &e);
+        }
+    } else if (etype == DPI::CIRCLE) {
+        QPointF c(data[DPI::STARTX].toDouble(), data[DPI::STARTY].toDouble());
+        double r = data[DPI::RADIUS].toDouble() + distance;
+        if (r > 0) m_dpi->addCircle(&c, r);
+    } else if (etype == DPI::ARC) {
+        QPointF c(data[DPI::STARTX].toDouble(), data[DPI::STARTY].toDouble());
+        double r = data[DPI::RADIUS].toDouble() + distance;
+        double a1 = data[DPI::STARTANGLE].toDouble();
+        double a2 = data[DPI::ENDANGLE].toDouble();
+        if (r > 0) m_dpi->addArc(&c, r, a1, a2);
+    }
+
+    delete target;
+    return true;
+}
+
 bool LibreCadDrawingAdapter::rotateEntity(qulonglong eid, double cx, double cy, double angle) {
     qDebug() << "[MCP BRIDGE] rotateEntity called:" << eid;
     if (!m_dpi) return false;
@@ -610,7 +681,13 @@ bool LibreCadDrawingAdapter::setVariable(const QString& key, const QVariant& val
 }
 
 void LibreCadDrawingAdapter::commit() {
-    // updateView() can crash if called from socket callback context
+    // Safely trigger view update via event loop to prevent crashes
+    if (m_dpi) {
+        Document_Interface* dpi = m_dpi;
+        QTimer::singleShot(0, [dpi]() {
+            if (dpi) dpi->updateView();
+        });
+    }
 }
 
 } // namespace mcp

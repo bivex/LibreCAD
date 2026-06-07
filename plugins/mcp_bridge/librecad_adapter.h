@@ -19,6 +19,7 @@ public:
     void drawPolyline(const Polyline& polyline) override;
     void drawLines(const Polyline& lines) override;
     void addText(const Text& text) override;
+    void addMText(const MText& mtext) override;
     void setLayer(const QString& name) override;
     void deleteLayer(const QString& name) override;
 
@@ -34,6 +35,7 @@ public:
     // Entity Operations
     bool removeEntity(qulonglong eid) override;
     bool moveEntity(qulonglong eid, double dx, double dy) override;
+    bool offsetEntity(qulonglong eid, double distance) override;
     bool rotateEntity(qulonglong eid, double cx, double cy, double angle) override;
     bool scaleEntity(qulonglong eid, double cx, double cy, double sx, double sy) override;
     bool moveRotateEntity(qulonglong eid, double dx, double dy, double cx, double cy, double angle) override;
