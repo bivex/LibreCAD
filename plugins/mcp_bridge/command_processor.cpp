@@ -1,6 +1,7 @@
 #include "command_processor.h"
 #include <QJsonArray>
 #include <cmath>
+#include <algorithm>
 #include <QDebug>
 
 #ifndef M_PI
@@ -43,6 +44,43 @@ static QPointF normalVec(const QPointF& a, const QPointF& b) {
     return QPointF(-dy/len, dx/len);
 }
 
+// --- Advanced Geometry Helpers ---
+
+static bool segmentIntersect(const QPointF& a, const QPointF& b, const QPointF& c, const QPointF& d, QPointF& out) {
+    double dx1 = b.x() - a.x(), dy1 = b.y() - a.y();
+    double dx2 = d.x() - c.x(), dy2 = d.y() - c.y();
+    double denom = dx1 * dy2 - dy1 * dx2;
+    if (std::abs(denom) < 1e-10) return false;
+
+    double t = ((c.x() - a.x()) * dy2 - (c.y() - a.y()) * dx2) / denom;
+    double u = ((c.x() - a.x()) * dy1 - (c.y() - a.y()) * dx1) / denom;
+
+    if (t >= 0.0 && t <= 1.0 && u >= 0.0 && u <= 1.0) {
+        out = QPointF(a.x() + t * dx1, a.y() + t * dy1);
+        return true;
+    }
+    return false;
+}
+
+static double polygonArea(const QVector<QPointF>& pts) {
+    int n = pts.size();
+    if (n < 3) return 0.0;
+    double area = 0.0;
+    for (int i = 0; i < n; ++i) {
+        area += pts[i].x() * pts[(i + 1) % n].y();
+        area -= pts[(i + 1) % n].x() * pts[i].y();
+    }
+    return std::abs(area) / 2.0;
+}
+
+static QPointF polygonCentroid(const QVector<QPointF>& pts) {
+    int n = pts.size();
+    if (n == 0) return QPointF(0,0);
+    double cx = 0, cy = 0;
+    for (const auto& p : pts) { cx += p.x(); cy += p.y(); }
+    return QPointF(cx / n, cy / n);
+}
+
 // --- Command processing ---
 
 QJsonObject CommandProcessor::process(const QJsonObject& json) {
@@ -57,6 +95,11 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
 
     if (method == "addLine") {
         m_service.drawLine({
+            {params["x1"].toDouble(), params["y1"].toDouble()},
+            {params["x2"].toDouble(), params["y2"].toDouble()}
+        });
+    } else if (method == "addConstructionLine") {
+        m_service.drawConstructionLine({
             {params["x1"].toDouble(), params["y1"].toDouble()},
             {params["x2"].toDouble(), params["y2"].toDouble()}
         });
@@ -107,6 +150,15 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
             }
             m_service.drawLines({points, params["closed"].toBool(false)});
         }
+
+    } else if (method == "addSolid") {
+        QJsonArray pointsArr = params["points"].toArray();
+        QVector<QPointF> points;
+        for (int i = 0; i < pointsArr.size(); ++i) {
+            QJsonObject p = pointsArr[i].toObject();
+            points.append(QPointF(p["x"].toDouble(), p["y"].toDouble()));
+        }
+        m_service.drawSolid({points});
 
     } else if (method == "addRectangle") {
         double x = params["x"].toDouble();
@@ -208,7 +260,11 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
             params["name"].toString(),
             {params["x"].toDouble(), params["y"].toDouble()},
             {params["sx"].toDouble(1.0), params["sy"].toDouble(1.0)},
-            params["rotation"].toDouble(0.0)
+            params["rotation"].toDouble(0.0),
+            params["rows"].toInt(1),
+            params["cols"].toInt(1),
+            params["rowSpacing"].toDouble(0.0),
+            params["colSpacing"].toDouble(0.0)
         });
 
     } else if (method == "addBlockFromDisk") {
@@ -314,7 +370,7 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
 
     } else if (method == "moveEntity") {
         qulonglong eid = QString::number(params["eid"].toDouble()).toULongLong();
-        if (!m_service.moveEntity(eid, params["dx"].toDouble(), params["dy"].toDouble())) {
+        if (!m_service.moveEntity(eid, params["dx"].toDouble(), params["dy"].toDouble(), params["copy"].toBool(false))) {
             response["status"] = "error";
             response["message"] = "Entity not found";
         }
@@ -328,7 +384,7 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
 
     } else if (method == "rotateEntity") {
         qulonglong eid = QString::number(params["eid"].toDouble()).toULongLong();
-        if (!m_service.rotateEntity(eid, params["cx"].toDouble(), params["cy"].toDouble(), params["angle"].toDouble())) {
+        if (!m_service.rotateEntity(eid, params["cx"].toDouble(), params["cy"].toDouble(), params["angle"].toDouble(), params["copy"].toBool(false))) {
             response["status"] = "error";
             response["message"] = "Entity not found";
         }
@@ -336,7 +392,7 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
     } else if (method == "scaleEntity") {
         qulonglong eid = QString::number(params["eid"].toDouble()).toULongLong();
         if (!m_service.scaleEntity(eid, params["cx"].toDouble(), params["cy"].toDouble(),
-                                    params["sx"].toDouble(), params["sy"].toDouble())) {
+                                    params["sx"].toDouble(), params["sy"].toDouble(), params["copy"].toBool(false))) {
             response["status"] = "error";
             response["message"] = "Entity not found";
         }
@@ -346,7 +402,7 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
         if (!m_service.moveRotateEntity(eid,
                     params["dx"].toDouble(), params["dy"].toDouble(),
                     params["cx"].toDouble(), params["cy"].toDouble(),
-                    params["angle"].toDouble())) {
+                    params["angle"].toDouble(), params["copy"].toBool(false))) {
             response["status"] = "error";
             response["message"] = "Entity not found";
         }
@@ -385,6 +441,45 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
         if (!m_service.updatePolylineData(eid, verts)) {
             response["status"] = "error";
             response["message"] = "Polyline not found";
+        }
+
+    // ========== Interactive Input ==========
+
+    } else if (method == "getPoint") {
+        QPointF p = m_service.getPoint(params["message"].toString());
+        if (std::isnan(p.x())) {
+            response["status"] = "error";
+            response["message"] = "User cancelled or failed";
+        } else {
+            response["x"] = p.x();
+            response["y"] = p.y();
+        }
+
+    } else if (method == "getEntity") {
+        qulonglong eid = m_service.getEntity(params["message"].toString());
+        if (eid == 0) {
+            response["status"] = "error";
+            response["message"] = "No entity selected";
+        } else {
+            response["eid"] = QString::number(eid);
+        }
+
+    } else if (method == "getSelection") {
+        QVector<qulonglong> ids = m_service.getSelection(params["message"].toString());
+        QJsonArray arr;
+        for (auto id : ids) arr.append(QString::number(id));
+        response["selection"] = arr;
+
+    } else if (method == "getString") {
+        response["value"] = m_service.getString(params["message"].toString(), params["title"].toString());
+    } else if (method == "getInt") {
+        response["value"] = m_service.getInt(params["message"].toString(), params["title"].toString());
+    } else if (method == "getReal") {
+        double val = m_service.getReal(params["message"].toString(), params["title"].toString());
+        if (std::isnan(val)) {
+            response["status"] = "error";
+        } else {
+            response["value"] = val;
         }
 
     // ========== Layer Properties ==========
@@ -451,6 +546,159 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
             {params["x2"].toDouble(), params["y2"].toDouble()},
             params["type"].toString("door")
         });
+
+    } else if (method == "addWindow") {
+        double cx = params["x"].toDouble(0);
+        double cy = params["y"].toDouble(0);
+        double width = params["width"].toDouble(900);
+        double depth = params["depth"].toDouble(150);
+        double sill = params["sill"].toDouble(80);
+        double angleRad = params["angle"].toDouble(0) * M_PI / 180.0;
+        QString layer = params["layer"].toString("windows");
+
+        QString prevLayer = m_service.getCurrentLayer();
+        m_service.setLayer(layer);
+
+        double ax = std::cos(angleRad), ay = std::sin(angleRad);
+        double nx = -ay, ny = ax;
+        double hw = width / 2.0;
+        double hd = depth / 2.0;
+
+        auto getPt = [&](double da, double dn) {
+            return QPointF(cx + da*ax + dn*nx, cy + da*ay + dn*ny);
+        };
+
+        QVector<QPointF> frame = { getPt(-hw, -hd), getPt(hw, -hd), getPt(hw, hd), getPt(-hw, hd) };
+        m_service.drawPolyline({frame, true});
+
+        for (double t : {1.0/3.0, 2.0/3.0}) {
+            double dn = -hd + depth * t;
+            m_service.drawLine({getPt(-hw, dn), getPt(hw, dn)});
+        }
+
+        double dn_out = hd + sill;
+        m_service.drawLine({getPt(-hw - 30, dn_out), getPt(hw + 30, dn_out)});
+        m_service.drawLine({getPt(-hw - 30, hd), getPt(-hw - 30, dn_out)});
+        m_service.drawLine({getPt(hw + 30, hd), getPt(hw + 30, dn_out)});
+
+        m_service.setLayer(prevLayer);
+
+    } else if (method == "calculateArea") {
+        QJsonArray jpts = params["points"].toArray();
+        if (jpts.size() < 3) {
+            response["status"] = "error";
+            response["message"] = "Need at least 3 points";
+        } else {
+            QVector<QPointF> pts;
+            for (int i = 0; i < jpts.size(); ++i) {
+                QJsonObject p = jpts[i].toObject();
+                pts.append(QPointF(p["x"].toDouble(), p["y"].toDouble()));
+            }
+            double raw = polygonArea(pts);
+            QString unit = params["unit"].toString("mm");
+            double scale = 1.0;
+            if (unit == "cm") scale = 10.0;
+            if (unit == "m") scale = 1000.0;
+            double area_m2 = (raw * scale * scale) / 1e6;
+            response["area_m2"] = area_m2;
+
+            if (params.contains("label")) {
+                QPointF center = polygonCentroid(pts);
+                m_service.addMText({
+                    QString("%1\n%2 m2").arg(params["label"].toString()).arg(area_m2, 0, 'f', 2),
+                    center,
+                    params["textSize"].toDouble(200.0),
+                    0.0
+                });
+            }
+        }
+
+    } else if (method == "trimLine") {
+        qulonglong eid = QString::number(params["eid"].toDouble()).toULongLong();
+        QString side = params["side"].toString("end");
+        qulonglong ref_eid = QString::number(params["ref_eid"].toDouble()).toULongLong();
+
+        QJsonObject target = m_service.getEntityDataById(eid);
+        if (target.isEmpty() || target["typeName"].toString() != "line") {
+            response["status"] = "error";
+            response["message"] = "Entity not found or not a line";
+        } else {
+            QPointF A(target["x1"].toDouble(), target["y1"].toDouble());
+            QPointF B(target["x2"].toDouble(), target["y2"].toDouble());
+            QJsonArray candidates;
+            if (ref_eid > 0) {
+                QJsonObject ref = m_service.getEntityDataById(ref_eid);
+                if (!ref.isEmpty()) candidates.append(ref);
+            } else {
+                candidates = m_service.getAllEntityData();
+            }
+
+            QPointF bestIP;
+            double bestDist = 1e18;
+            bool found = false;
+            for (int i = 0; i < candidates.size(); ++i) {
+                QJsonObject ent = candidates[i].toObject();
+                if (QString::number(eid) == ent["eid"].toString()) continue;
+                if (ent["typeName"].toString() != "line") continue;
+                QPointF C(ent["x1"].toDouble(), ent["y1"].toDouble());
+                QPointF D(ent["x2"].toDouble(), ent["y2"].toDouble());
+                QPointF ip;
+                if (segmentIntersect(A, B, C, D, ip)) {
+                    QPointF ref_pt = (side == "start") ? A : B;
+                    double d = std::hypot(ip.x() - ref_pt.x(), ip.y() - ref_pt.y());
+                    if (d < bestDist) { bestDist = d; bestIP = ip; found = true; }
+                }
+            }
+
+            if (found) {
+                QHash<int, QVariant> update;
+                if (side == "start") { update[10] = bestIP.x(); update[20] = bestIP.y(); }
+                else { update[11] = bestIP.x(); update[21] = bestIP.y(); }
+                m_service.updateEntityData(eid, update);
+            } else {
+                response["status"] = "no_intersection";
+            }
+        }
+
+    } else if (method == "joinWalls") {
+        QJsonArray w1 = params["wall1_eids"].toArray();
+        QJsonArray w2 = params["wall2_eids"].toArray();
+        if (w1.size() < 2 || w2.size() < 2) {
+            response["status"] = "error";
+            response["message"] = "Need 2 EIDs per wall";
+        } else {
+            auto getLine = [&](qulonglong id) {
+                QJsonObject e = m_service.getEntityDataById(id);
+                return std::make_pair(QPointF(e["x1"].toDouble(), e["y1"].toDouble()), QPointF(e["x2"].toDouble(), e["y2"].toDouble()));
+            };
+            QPointF l1[2][2], l2[2][2];
+            qulonglong e1[2], e2[2];
+            for(int i=0; i<2; ++i) {
+                e1[i] = QString::number(w1[i].toDouble()).toULongLong();
+                auto p = getLine(e1[i]); l1[i][0] = p.first; l1[i][1] = p.second;
+                e2[i] = QString::number(w2[i].toDouble()).toULongLong();
+                auto q = getLine(e2[i]); l2[i][0] = q.first; l2[i][1] = q.second;
+            }
+            int joins = 0;
+            for(int i=0; i<2; ++i) {
+                for(int j=0; j<2; ++j) {
+                    QPointF ip;
+                    if (segmentIntersect(l1[i][0], l1[i][1], l2[j][0], l2[j][1], ip)) {
+                        auto trim = [&](qulonglong id, const QPointF& a, const QPointF& b, const QPointF& p) {
+                            QHash<int, QVariant> u;
+                            if (std::hypot(a.x()-p.x(), a.y()-p.y()) < std::hypot(b.x()-p.x(), b.y()-p.y()))
+                                { u[10] = p.x(); u[20] = p.y(); }
+                            else { u[11] = p.x(); u[21] = p.y(); }
+                            m_service.updateEntityData(id, u);
+                        };
+                        trim(e1[i], l1[i][0], l1[i][1], ip);
+                        trim(e2[j], l2[j][0], l2[j][1], ip);
+                        joins++;
+                    }
+                }
+            }
+            response["joins"] = joins;
+        }
 
     // ========== Tactical ==========
 

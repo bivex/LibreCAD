@@ -7,6 +7,8 @@
 #include <QStringList>
 #include <QHash>
 #include <QVariant>
+#include <QJsonArray>
+#include <QJsonObject>
 
 namespace mcp {
 
@@ -20,6 +22,8 @@ struct Text { QString content; QPointF position; double size; };
 struct MText { QString content; QPointF position; double height; double angle; };
 struct Point { QPointF position; };
 struct SplinePoints { QVector<QPointF> points; bool closed; };
+struct ConstructionLine { QPointF p1; QPointF p2; };
+struct Solid { QVector<QPointF> points; };
 
 // --- Interior Architecture Entities ---
 struct Wall { QPointF start; QPointF end; double thickness; };
@@ -30,7 +34,16 @@ struct TacticalSymbol { QPointF position; QString identity; QString unitType; do
 struct TacticalLine { QVector<QPointF> points; QString type; };
 
 // --- Block/Insert ---
-struct BlockInsert { QString name; QPointF insertionPoint; QPointF scale; double rotation; };
+struct BlockInsert {
+    QString name;
+    QPointF insertionPoint;
+    QPointF scale;
+    double rotation;
+    int rows = 1;
+    int cols = 1;
+    double rowSpacing = 0.0;
+    double colSpacing = 0.0;
+};
 
 // --- Dimensions ---
 enum class DimType { Linear, Aligned, Radial, Diametric, Angular, Leader };
@@ -61,11 +74,13 @@ public:
 
     // Core Commands
     virtual void drawLine(const Line& line) = 0;
+    virtual void drawConstructionLine(const ConstructionLine& cline) = 0;
     virtual void drawCircle(const Circle& circle) = 0;
     virtual void drawArc(const Arc& arc) = 0;
     virtual void drawEllipse(const Ellipse& ellipse) = 0;
     virtual void drawPolyline(const Polyline& polyline) = 0;
     virtual void drawLines(const Polyline& lines) = 0;
+    virtual void drawSolid(const Solid& solid) = 0;
     virtual void addText(const Text& text) = 0;
     virtual void addMText(const MText& mtext) = 0;
     virtual void setLayer(const QString& name) = 0;
@@ -82,11 +97,11 @@ public:
 
     // Entity Operations
     virtual bool removeEntity(qulonglong eid) = 0;
-    virtual bool moveEntity(qulonglong eid, double dx, double dy) = 0;
+    virtual bool moveEntity(qulonglong eid, double dx, double dy, bool copy = false) = 0;
     virtual bool offsetEntity(qulonglong eid, double distance) = 0;
-    virtual bool rotateEntity(qulonglong eid, double cx, double cy, double angle) = 0;
-    virtual bool scaleEntity(qulonglong eid, double cx, double cy, double sx, double sy) = 0;
-    virtual bool moveRotateEntity(qulonglong eid, double dx, double dy, double cx, double cy, double angle) = 0;
+    virtual bool rotateEntity(qulonglong eid, double cx, double cy, double angle, bool copy = false) = 0;
+    virtual bool scaleEntity(qulonglong eid, double cx, double cy, double sx, double sy, bool copy = false) = 0;
+    virtual bool moveRotateEntity(qulonglong eid, double dx, double dy, double cx, double cy, double angle, bool copy = false) = 0;
     virtual bool updateEntityData(qulonglong eid, const QHash<int, QVariant>& data) = 0;
 
     // Entity Queries
@@ -111,6 +126,14 @@ public:
     virtual QString getCurrentLayer() = 0;
     virtual void unselectEntities() = 0;
     virtual QString realToStr(double num, int units = 0, int prec = 0) = 0;
+
+    // Interactive Input
+    virtual QPointF getPoint(const QString& message = "") = 0;
+    virtual qulonglong getEntity(const QString& message = "") = 0;
+    virtual QVector<qulonglong> getSelection(const QString& message = "") = 0;
+    virtual QString getString(const QString& message, const QString& title) = 0;
+    virtual int getInt(const QString& message, const QString& title) = 0;
+    virtual double getReal(const QString& message, const QString& title) = 0;
 
     // Variables
     virtual QVariant getVariable(const QString& key) = 0;

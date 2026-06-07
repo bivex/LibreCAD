@@ -13,11 +13,13 @@ public:
 
     // Core Commands
     void drawLine(const Line& line) override;
+    void drawConstructionLine(const ConstructionLine& cline) override;
     void drawCircle(const Circle& circle) override;
     void drawArc(const Arc& arc) override;
     void drawEllipse(const Ellipse& ellipse) override;
     void drawPolyline(const Polyline& polyline) override;
     void drawLines(const Polyline& lines) override;
+    void drawSolid(const Solid& solid) override;
     void addText(const Text& text) override;
     void addMText(const MText& mtext) override;
     void setLayer(const QString& name) override;
@@ -34,11 +36,11 @@ public:
 
     // Entity Operations
     bool removeEntity(qulonglong eid) override;
-    bool moveEntity(qulonglong eid, double dx, double dy) override;
+    bool moveEntity(qulonglong eid, double dx, double dy, bool copy = false) override;
     bool offsetEntity(qulonglong eid, double distance) override;
-    bool rotateEntity(qulonglong eid, double cx, double cy, double angle) override;
-    bool scaleEntity(qulonglong eid, double cx, double cy, double sx, double sy) override;
-    bool moveRotateEntity(qulonglong eid, double dx, double dy, double cx, double cy, double angle) override;
+    bool rotateEntity(qulonglong eid, double cx, double cy, double angle, bool copy = false) override;
+    bool scaleEntity(qulonglong eid, double cx, double cy, double sx, double sy, bool copy = false) override;
+    bool moveRotateEntity(qulonglong eid, double dx, double dy, double cx, double cy, double angle, bool copy = false) override;
     bool updateEntityData(qulonglong eid, const QHash<int, QVariant>& data) override;
 
     // Entity Queries
@@ -63,6 +65,14 @@ public:
     QString getCurrentLayer() override;
     void unselectEntities() override;
     QString realToStr(double num, int units = 0, int prec = 0) override;
+
+    // Interactive Input
+    QPointF getPoint(const QString& message = "") override;
+    qulonglong getEntity(const QString& message = "") override;
+    QVector<qulonglong> getSelection(const QString& message = "") override;
+    QString getString(const QString& message, const QString& title) override;
+    int getInt(const QString& message, const QString& title) override;
+    double getReal(const QString& message, const QString& title) override;
 
     // Variables
     QVariant getVariable(const QString& key) override;
