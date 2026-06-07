@@ -77,7 +77,18 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
 
 async def main():
     async with stdio_server() as (r, w):
-        await server.run(r, w, InitializationOptions(server_name="librecad-mcp", server_version="1.1.0", capabilities=server.get_capabilities()))
+        await server.run(
+            r, 
+            w, 
+            InitializationOptions(
+                server_name="librecad-mcp", 
+                server_version="1.1.0", 
+                capabilities=server.get_capabilities(
+                    notification_options=NotificationOptions(),
+                    experimental_capabilities={},
+                )
+            )
+        )
 
 if __name__ == "__main__":
     asyncio.run(main())
