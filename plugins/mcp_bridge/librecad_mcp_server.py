@@ -18,7 +18,7 @@ SUPPORTED_METHODS = {
     "Architectural": ["addWall", "addOpening", "addWindow", "calculateArea", "trimLine", "joinWalls"],
     "Interactive": ["getPoint", "getEntity", "getSelection", "getString", "getInt", "getReal"],
     "Geometry Tools": ["line2Points", "lineAngle", "lineHorizontal", "lineVertical", "lineParallel", "lineBisector", "lineTangentPC", "lineTangentCC", "lineOrthogonal", "lineRelativeAngle", "lineSnakeX", "lineSnakeY"],
-    "Entity Operations": ["moveEntity", "rotateEntity", "scaleEntity", "moveRotateEntity", "offsetEntity", "removeEntity", "updateEntity", "getAllEntities", "getEntityById"],
+    "Entity Operations": ["moveEntity", "rotateEntity", "scaleEntity", "moveRotateEntity", "offsetEntity", "removeEntity", "updateEntity", "getAllEntities", "getEntityById", "clearAll"],
     "Layers/Props": ["setLayer", "deleteLayer", "getLayers", "getBlocks", "getLayerProperties", "setLayerProperties", "getVariable", "setVariable"]
 }
 
@@ -29,7 +29,14 @@ def send_librecad_command(method, params):
             s.connect((LIBRECAD_HOST, LIBRECAD_PORT))
             payload = json.dumps({"method": method, "params": params})
             s.sendall(payload.encode('utf-8'))
-            data = s.recv(65536) # Larger buffer for getAllEntities
+            data = b""
+            while True:
+                chunk = s.recv(16384)
+                if not chunk:
+                    break
+                data += chunk
+                if b"\n" in chunk: # Command processor ends response with newline
+                    break
             if not data:
                 return {"status": "error", "message": "No data received"}
             return json.loads(data.decode('utf-8'))
@@ -60,6 +67,11 @@ async def handle_list_tools() -> list[types.Tool]:
             name="librecad_get_entities",
             description="Get all entities from the current drawing.",
             inputSchema={"type": "object", "properties": {}}
+        ),
+        types.Tool(
+            name="librecad_clear_all",
+            description="Clear all entities from the current drawing.",
+            inputSchema={"type": "object", "properties": {}}
         )
     ]
 
@@ -73,6 +85,9 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
     elif name == "librecad_get_entities":
         result = send_librecad_command("getAllEntities", {})
         return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
+    elif name == "librecad_clear_all":
+        result = send_librecad_command("clearAll", {})
+        return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
     raise ValueError(f"Unknown tool: {name}")
 
 async def main():
@@ -82,7 +97,7 @@ async def main():
             w, 
             InitializationOptions(
                 server_name="librecad-mcp", 
-                server_version="1.1.0", 
+                server_version="1.2.0", 
                 capabilities=server.get_capabilities(
                     notification_options=NotificationOptions(),
                     experimental_capabilities={},

@@ -351,6 +351,15 @@ QJsonObject CommandProcessor::process(const QJsonObject& json) {
     } else if (method == "getAllEntities") {
         response["entities"] = m_service.getAllEntityData();
 
+    } else if (method == "clearAll") {
+        QJsonArray all = m_service.getAllEntityData();
+        int count = 0;
+        for (int i = 0; i < all.size(); ++i) {
+            qulonglong eid = all[i].toObject()["eid"].toString().toULongLong();
+            if (m_service.removeEntity(eid)) count++;
+        }
+        response["deleted_count"] = count;
+
     } else if (method == "getEntityById") {
         qulonglong eid = QString::number(params["eid"].toDouble()).toULongLong();
         QJsonObject data = m_service.getEntityDataById(eid);
